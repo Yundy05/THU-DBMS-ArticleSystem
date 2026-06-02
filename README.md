@@ -16,3 +16,6 @@ docker compose down -v       # stop and delete all data (full reset)
 
 # Setting up Database indexes 
 python scripts/init_db.py
+
+# Loading users
+python scripts/load_users.py db-generation/user.dat
