@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}{{ article.title }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container narrow">
+    <a href="{{ url_for('home') }}" class="back">← Back</a>
+
+    <article class="detail-card">
+      <p class="eyebrow">{{ article.category }} · AID {{ article.aid }}</p>
+      <h1>{{ article.title }}</h1>
+      <p class="sub">{{ article.abstract }}</p>
+
+      <div class="meta">
+        <div><strong>Authors</strong><span>{{ article.authors }}</span></div>
+        <div><strong>Language</strong><span>{{ article.language }}</span></div>
+        <div><strong>Keywords</strong><span>{{ article.keywords }}</span></div>
+        <div><strong>Timestamp</strong><span>{{ article.timestamp }}</span></div>
+      </div>
+
+      {% if article.local_images %}
+      <img src="{{ url_for('serve_image', filename=article.local_images[0]) }}" alt="Article image" class="hero-image">
+      {% endif %}
+    </article>
+
+    <section class="detail-card">
+      <h2>Derived engagement</h2>
+      {% if beread %}
+      <div class="meta four">
+        <div><strong>Reads</strong><span>{{ beread.readNum }}</span></div>
+        <div><strong>Comments</strong><span>{{ beread.commentNum }}</span></div>
+        <div><strong>Agrees</strong><span>{{ beread.agreeNum }}</span></div>
+        <div><strong>Shares</strong><span>{{ beread.shareNum }}</span></div>
+      </div>
+      {% else %}
+      <p class="muted">No Be-Read row found yet.</p>
+      {% endif %}
+    </section>
+  </div>
+</section>
+{% endblock %}

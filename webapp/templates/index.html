@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <div class="container hero-grid">
+    <div>
+      <p class="eyebrow">Distributed article demo</p>
+      <h1>Browse your article collection quickly.</h1>
+      <p class="sub">This website uses your MongoDB fragments and derived tables to create a clean project demo.</p>
+    </div>
+    <div class="stats">
+      <div><span>Total articles</span><strong>{{ totals.articles }}</strong></div>
+      <div><span>Total reads</span><strong>{{ totals.reads }}</strong></div>
+      <div><span>Science</span><strong>{{ totals.science }}</strong></div>
+      <div><span>Technology</span><strong>{{ totals.technology }}</strong></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container layout">
+    <aside class="sidebar">
+      <form method="get" class="filters">
+        <label>
+          Keyword
+          <input name="q" value="{{ q }}" placeholder="title, abstract, author, keyword">
+        </label>
+        <label>
+          Category
+          <select name="category">
+            <option value="">All</option>
+            <option value="science" {% if category=='science' %}selected{% endif %}>Science</option>
+            <option value="technology" {% if category=='technology' %}selected{% endif %}>Technology</option>
+          </select>
+        </label>
+        <label>
+          Sort
+          <select name="sort">
+            <option value="aid" {% if sort=='aid' %}selected{% endif %}>Article ID</option>
+            <option value="title" {% if sort=='title' %}selected{% endif %}>Title</option>
+            <option value="newest" {% if sort=='newest' %}selected{% endif %}>Newest</option>
+            <option value="oldest" {% if sort=='oldest' %}selected{% endif %}>Oldest</option>
+          </select>
+        </label>
+        <button type="submit">Apply</button>
+      </form>
+
+      <div class="mini-monitor">
+        {% for node in snapshot %}
+        <div class="node">
+          <h3>{{ node.label }}</h3>
+          {% for name, count in node.collections.items() %}
+          <p>{{ name }}: {{ count }}</p>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <div>
+      <p class="results">{{ total }} results · page {{ page }} of {{ pages }}</p>
+      <div class="grid">
+        {% for article in articles %}
+        <article class="card">
+          <div class="card-top">
+            <span class="chip">{{ article.category }}</span>
+            <span class="aid">AID {{ article.aid }}</span>
+          </div>
+          <h2>{{ article.title }}</h2>
+          <p>{{ article.preview }}</p>
+          <p class="muted">{{ article.authors }}</p>
+          {% if article.local_images %}
+          <img src="{{ url_for('serve_image', filename=article.local_images[0]) }}" alt="Article image" class="thumb">
+          {% endif %}
+          <a href="{{ url_for('article_detail', aid=article.aid) }}">Open article</a>
+        </article>
+        {% endfor %}
+      </div>
+
+      <div class="pager">
+        {% if page > 1 %}
+        <a href="?page={{ page-1 }}&q={{ q }}&category={{ category }}&sort={{ sort }}">Previous</a>
+        {% endif %}
+        {% if page < pages %}
+        <a href="?page={{ page+1 }}&q={{ q }}&category={{ category }}&sort={{ sort }}">Next</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

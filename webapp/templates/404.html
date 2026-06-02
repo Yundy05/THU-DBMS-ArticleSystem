@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="section">
+  <div class="container narrow">
+    <div class="detail-card">
+      <h1>Not found</h1>
+      <p>The requested page or article does not exist.</p>
+      <a href="{{ url_for('home') }}">Return home</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

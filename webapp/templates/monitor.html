@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="section">
+  <div class="container">
+    <h1 class="page-title">Monitoring dashboard</h1>
+
+    <div class="monitor-grid">
+      {% for node in snapshot %}
+      <section class="detail-card">
+        <h2>{{ node.label }}</h2>
+        {% for name, count in node.collections.items() %}
+        <p><strong>{{ name }}</strong>: {{ count }}</p>
+        {% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+
+    <div class="monitor-grid">
+      {% for granularity, rows in ranks.items() %}
+      <section class="detail-card">
+        <h2>{{ granularity|capitalize }} top 5</h2>
+        <ol>
+          {% for row in rows %}
+          <li>{{ row.title }} <span class="muted">(AID {{ row.aid }} · {{ row.category }})</span></li>
+          {% else %}
+          <li class="muted">No data</li>
+          {% endfor %}
+        </ol>
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
