@@ -1,40 +1,38 @@
-{% extends 'base.html' %}
-{% block title %}{{ article.title }}{% endblock %}
-{% block content %}
+{% extends 'base.html' %} {% block title %}{{ article.title }}{% endblock %} {%
+block content %}
 <section class="section">
-  <div class="container narrow">
-    <a href="{{ url_for('home') }}" class="back">← Back</a>
+  <div class="container">
+    <a href="{{ url_for('home') }}">← Back</a>
 
-    <article class="detail-card">
-      <p class="eyebrow">{{ article.category }} · AID {{ article.aid }}</p>
-      <h1>{{ article.title }}</h1>
-      <p class="sub">{{ article.abstract }}</p>
+    <h1>{{ article.title }}</h1>
+    <p>{{ article.abstract }}</p>
 
-      <div class="meta">
-        <div><strong>Authors</strong><span>{{ article.authors }}</span></div>
-        <div><strong>Language</strong><span>{{ article.language }}</span></div>
-        <div><strong>Keywords</strong><span>{{ article.keywords }}</span></div>
-        <div><strong>Timestamp</strong><span>{{ article.timestamp }}</span></div>
-      </div>
+    <p><strong>Category:</strong> {{ article.category }}</p>
+    <p><strong>Authors:</strong> {{ article.authors }}</p>
+    <p><strong>Language:</strong> {{ article.language }}</p>
+    <p><strong>Keywords:</strong> {{ article.keywords }}</p>
+    <p><strong>Timestamp:</strong> {{ article.timestamp }}</p>
 
-      {% if article.local_images %}
-      <img src="{{ url_for('serve_image', filename=article.local_images[0]) }}" alt="Article image" class="hero-image">
-      {% endif %}
-    </article>
+    {% if article.local_images %}
+    <img
+      src="{{ url_for('serve_image', aid=article.aid, filename=article.local_images[0].name) }}"
+      alt="Article image"
+      class="thumb"
+    />  
+    {% endif %} {% if article.text_info %}
+    <h2>Related text</h2>
+    <p>{{ article.text_info.preview }}</p>
+    {% endif %}
 
-    <section class="detail-card">
-      <h2>Derived engagement</h2>
-      {% if beread %}
-      <div class="meta four">
-        <div><strong>Reads</strong><span>{{ beread.readNum }}</span></div>
-        <div><strong>Comments</strong><span>{{ beread.commentNum }}</span></div>
-        <div><strong>Agrees</strong><span>{{ beread.agreeNum }}</span></div>
-        <div><strong>Shares</strong><span>{{ beread.shareNum }}</span></div>
-      </div>
-      {% else %}
-      <p class="muted">No Be-Read row found yet.</p>
-      {% endif %}
-    </section>
+    <h2>Derived engagement</h2>
+    {% if beread %}
+    <p><strong>Reads:</strong> {{ beread.readNum }}</p>
+    <p><strong>Comments:</strong> {{ beread.commentNum }}</p>
+    <p><strong>Agrees:</strong> {{ beread.agreeNum }}</p>
+    <p><strong>Shares:</strong> {{ beread.shareNum }}</p>
+    {% else %}
+    <p>No Be-Read row found yet.</p>
+    {% endif %}
   </div>
 </section>
 {% endblock %}

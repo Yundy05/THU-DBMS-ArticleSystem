@@ -1,34 +1,34 @@
-{% extends 'base.html' %}
-{% block content %}
+{% extends 'base.html' %} {% block title %}Monitor{% endblock %} {% block
+content %}
 <section class="section">
   <div class="container">
-    <h1 class="page-title">Monitoring dashboard</h1>
+    <h1>Monitor</h1>
 
-    <div class="monitor-grid">
-      {% for node in snapshot %}
-      <section class="detail-card">
-        <h2>{{ node.label }}</h2>
-        {% for name, count in node.collections.items() %}
-        <p><strong>{{ name }}</strong>: {{ count }}</p>
-        {% endfor %}
-      </section>
+    {% for node in snapshot %}
+    <div>
+      <h2>{{ node.label }}</h2>
+      {% for name, count in node.collections.items() %}
+      <p>{{ name }}: {{ count }}</p>
       {% endfor %}
     </div>
+    {% endfor %}
 
-    <div class="monitor-grid">
-      {% for granularity, rows in ranks.items() %}
-      <section class="detail-card">
-        <h2>{{ granularity|capitalize }} top 5</h2>
-        <ol>
-          {% for row in rows %}
-          <li>{{ row.title }} <span class="muted">(AID {{ row.aid }} · {{ row.category }})</span></li>
-          {% else %}
-          <li class="muted">No data</li>
-          {% endfor %}
-        </ol>
-      </section>
-      {% endfor %}
-    </div>
+    <h2>Popular rankings</h2>
+
+    <h3>Daily</h3>
+    {% for item in ranks.daily %}
+    <p>{{ item.aid }} - {{ item.title }}</p>
+    {% endfor %}
+
+    <h3>Weekly</h3>
+    {% for item in ranks.weekly %}
+    <p>{{ item.aid }} - {{ item.title }}</p>
+    {% endfor %}
+
+    <h3>Monthly</h3>
+    {% for item in ranks.monthly %}
+    <p>{{ item.aid }} - {{ item.title }}</p>
+    {% endfor %}
   </div>
 </section>
 {% endblock %}

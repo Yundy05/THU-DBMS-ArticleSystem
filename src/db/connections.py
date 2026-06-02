@@ -9,6 +9,13 @@ load_dotenv()
 _mongo1_client = None
 _mongo2_client = None
 
+def _require_env(name):
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
 def get_mongo1():
     global _mongo1_client
     if _mongo1_client is None:
