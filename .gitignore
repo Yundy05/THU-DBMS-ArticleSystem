@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+data/raw/
+data/processed/
+.DS_Store
+db-generation/user.dat
+db-generation/article.dat
+db-generation/read.dat
+db-generation/articles/
+*.log
