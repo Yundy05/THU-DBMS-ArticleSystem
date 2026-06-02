@@ -111,18 +111,93 @@ def load_related_text(article):
                 pass
     return None
 
+def safe_count(coll, query=None):
+    try:
+        return coll.count_documents(query or {})
+    except Exception:
+        return 0
+
+
 def monitor_snapshot():
-    result = []
-    for label, db in [("MongoDB1", db1()), ("MongoDB2", db2())]:
-        collections = {}
-        for name in ["users", "articles", "reads", "bereads", "popular_rank"]:
-            try:
-                count = db[name].count_documents({})
-            except Exception:
-                count = 0
-            collections[name] = count
-        result.append({"label": label, "collections": collections})
-    return result
+    mongo1 = db1()
+    mongo2 = db2()
+
+    return [
+        {
+            "label": "MongoDB1",
+            "status": "online",
+            "location_note": "Stores Beijing users, science articles replica, Beijing reads, science Be-Read replica, and daily popular rank.",
+            "collections": {
+                "users": safe_count(mongo1["users"]),
+                "articles": safe_count(mongo1["articles"]),
+                "reads": safe_count(mongo1["reads"]),
+                "bereads": safe_count(mongo1["bereads"]),
+                "popular_rank": safe_count(mongo1["popular_rank"]),
+            },
+            "managed_data": {
+                "regions": {
+                    "Beijing": safe_count(mongo1["users"], {"region": "Beijing"}),
+                    "HongKong": safe_count(mongo1["users"], {"region": "HongKong"}),
+                },
+                "article_categories": {
+                    "science": safe_count(mongo1["articles"], {"category": "science"}),
+                    "technology": safe_count(mongo1["articles"], {"category": "technology"}),
+                },
+                "popular_rank_granularity": {
+                    "daily": safe_count(mongo1["popular_rank"], {"temporalGranularity": "daily"}),
+                    "weekly": safe_count(mongo1["popular_rank"], {"temporalGranularity": "weekly"}),
+                    "monthly": safe_count(mongo1["popular_rank"], {"temporalGranularity": "monthly"}),
+                },
+            },
+        },
+        {
+            "label": "MongoDB2",
+            "status": "online",
+            "location_note": "Stores HongKong users, science and technology articles, HongKong reads, science and technology Be-Read, and weekly/monthly popular rank.",
+            "collections": {
+                "users": safe_count(mongo2["users"]),
+                "articles": safe_count(mongo2["articles"]),
+                "reads": safe_count(mongo2["reads"]),
+                "bereads": safe_count(mongo2["bereads"]),
+                "popular_rank": safe_count(mongo2["popular_rank"]),
+            },
+            "managed_data": {
+                "regions": {
+                    "Beijing": safe_count(mongo2["users"], {"region": "Beijing"}),
+                    "HongKong": safe_count(mongo2["users"], {"region": "HongKong"}),
+                },
+                "article_categories": {
+                    "science": safe_count(mongo2["articles"], {"category": "science"}),
+                    "technology": safe_count(mongo2["articles"], {"category": "technology"}),
+                },
+                "popular_rank_granularity": {
+                    "daily": safe_count(mongo2["popular_rank"], {"temporalGranularity": "daily"}),
+                    "weekly": safe_count(mongo2["popular_rank"], {"temporalGranularity": "weekly"}),
+                    "monthly": safe_count(mongo2["popular_rank"], {"temporalGranularity": "monthly"}),
+                },
+            },
+        },
+    ]
+
+
+def workload_summary():
+    mongo1 = db1()
+    mongo2 = db2()
+
+    return {
+        "MongoDB1": {
+            "read_records": safe_count(mongo1["reads"]),
+            "beread_records": safe_count(mongo1["bereads"]),
+            "article_records": safe_count(mongo1["articles"]),
+            "user_records": safe_count(mongo1["users"]),
+        },
+        "MongoDB2": {
+            "read_records": safe_count(mongo2["reads"]),
+            "beread_records": safe_count(mongo2["bereads"]),
+            "article_records": safe_count(mongo2["articles"]),
+            "user_records": safe_count(mongo2["users"]),
+        },
+    }
 
 
 def latest_ranks():
@@ -131,6 +206,25 @@ def latest_ranks():
         "weekly": db2()["popular_rank"].find_one({"temporalGranularity": "weekly"}, {"_id": 0}),
         "monthly": db2()["popular_rank"].find_one({"temporalGranularity": "monthly"}, {"_id": 0}),
     }
+
+    enriched = {}
+    for granularity, doc in docs.items():
+        rows = []
+        if doc:
+            for aid in doc.get("articleAidList", [])[:5]:
+                art = article_lookup(aid)
+                if art:
+                    art["local_images"] = existing_image_candidates(art)
+                    rows.append({
+                        "aid": aid,
+                        "title": art.get("title", "Untitled"),
+                        "category": art.get("category", "unknown"),
+                        "authors": art.get("authors", "Unknown"),
+                        "abstract": safe_preview(art.get("abstract", ""), 120),
+                        "local_images": art.get("local_images", []),
+                    })
+        enriched[granularity] = rows
+    return enriched
 
     enriched = {}
     for granularity, doc in docs.items():
@@ -232,8 +326,12 @@ def article_detail(aid):
 
 @app.route("/monitor")
 def monitor():
-    return render_template("monitor.html", snapshot=monitor_snapshot(), ranks=latest_ranks())
-
+    return render_template(
+        "monitor.html",
+        snapshot=monitor_snapshot(),
+        ranks=latest_ranks(),
+        workload=workload_summary(),
+    )
 
 @app.route("/assets/image/<aid>/<filename>")
 def serve_image(aid, filename):
