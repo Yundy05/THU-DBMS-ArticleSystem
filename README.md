@@ -13,3 +13,6 @@ docker ps
 # Additional Docker Commands
 docker compose down          # stop but keep data
 docker compose down -v       # stop and delete all data (full reset)
+
+# Setting up Database indexes 
+python scripts/init_db.py
