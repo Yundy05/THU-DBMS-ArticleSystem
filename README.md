@@ -19,3 +19,23 @@ python scripts/init_db.py
 
 # Loading users
 python scripts/load_users.py db-generation/user.dat
+
+# Loading BeReads
+python scripts/derive_beread.py
+
+# Loading Popular Rankings
+python scripts/derive_popular_rank.py
+
+# Loading Queries
+python scripts/run_queries.py
+
+# Loading Monitor
+python scripts/monitor.py
+
+# How to excute code
+chmod +x bootstrap.sh
+./bootstrap.sh
+
+# Full reset and load
+chmod +x reset_and_load.sh
+./reset_and_load.sh

@@ -38,7 +38,7 @@ def route_read(read: dict, user_region: str):
     db = get_mongo1() if user_region == "Beijing" else get_mongo2()
     return db["reads"]
     
-def route_beread(beread:dict, article_category: str): 
+def route_beread(article_category: str): 
     """
     Be-Read Table follows Article table fragmentation with replication
     
@@ -60,6 +60,6 @@ def route_popular_rank(granularity: str):
     - Weekly/Monthly ranks go to MongoDB2
     """
     if granularity == "daily":
-        return get_mongo1()["popular_ranks"]
+        return [get_mongo1()["popular_rank"]]
     else:
-        return get_mongo2()["popular_ranks"]
+        return [get_mongo2()["popular_rank"]]

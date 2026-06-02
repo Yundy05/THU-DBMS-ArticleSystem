@@ -1,7 +1,7 @@
 #derive_beread.py
 
 import sys
-from datetime import datetime
+from datetime import datetime, UTC
 sys.path.insert(0, ".")
 
 from src.db.connections import get_mongo1, get_mongo2
@@ -27,7 +27,7 @@ def derive_beread():
         if aid not in aggregated:
             aggregated[aid] = {
                 "aid": aid,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "readNum": 0, "readUidList": [],
                 "commentNum": 0, "commentUidList": [],
                 "agreeNum": 0, "agreeUidList": [],

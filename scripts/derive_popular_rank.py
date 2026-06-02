@@ -1,7 +1,7 @@
 #derive_popular_rank.py
 
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from collections import defaultdict
 sys.path.insert(0, ".")
 
@@ -13,7 +13,7 @@ def derive_popular_rank():
     for db in [get_mongo1(), get_mongo2()]:
         all_reads.extend(list(db["reads"].find({}, {"aid": 1, "timestamp": 1, "_id": 0})))
 
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     buckets = {
         "daily":   defaultdict(int),
         "weekly":  defaultdict(int),
@@ -23,8 +23,7 @@ def derive_popular_rank():
     for read in all_reads:
         aid = read["aid"]
         try:
-            # Generator timestamps are milliseconds since epoch stored as strings
-            ts = datetime.utcfromtimestamp(int(read.get("timestamp", "0")) / 1000)
+            ts = datetime.fromtimestamp(int(read.get("timestamp", "0")) / 1000, UTC)
         except Exception:
             ts = now
 
@@ -36,7 +35,6 @@ def derive_popular_rank():
             buckets["monthly"][aid] += 1
 
     for granularity, counts in buckets.items():
-        # Fallback: if no reads fall in the window, rank by total read count
         if not counts:
             counts = defaultdict(int)
             for read in all_reads:
@@ -46,13 +44,13 @@ def derive_popular_rank():
         record = {
             "timestamp": now.isoformat(),
             "temporalGranularity": granularity,
-            "articleAidList": [aid for aid, _ in top5]
+            "articleAidList": [aid for aid, _ in top5],
         }
         for col in route_popular_rank(granularity):
             col.update_one(
                 {"temporalGranularity": granularity},
                 {"$set": record},
-                upsert=True
+                upsert=True,
             )
         print(f"  {granularity}: top-5 = {record['articleAidList']}")
 
