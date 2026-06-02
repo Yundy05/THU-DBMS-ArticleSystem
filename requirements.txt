@@ -2,3 +2,4 @@ pymongo
 pandas
 python-dotenv
 faker
+flask

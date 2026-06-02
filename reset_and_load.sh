@@ -30,3 +30,10 @@ echo "Loading reads..."
 python scripts/load_reads.py
 
 echo "Reset and base load complete."
+
+echo "Loading bereads..."
+python scripts/load_reads.py
+
+echo "Loading popular rankings..."
+python scripts/derive_popular_rank.py
+echo "Bootstrap complete."
