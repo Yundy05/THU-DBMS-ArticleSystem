@@ -137,7 +137,7 @@ def monitor_snapshot():
             "managed_data": {
                 "regions": {
                     "Beijing": safe_count(mongo1["users"], {"region": "Beijing"}),
-                    "HongKong": safe_count(mongo1["users"], {"region": "HongKong"}),
+                    "Hong Kong": safe_count(mongo1["users"], {"region": "Hong Kong"}),
                 },
                 "article_categories": {
                     "science": safe_count(mongo1["articles"], {"category": "science"}),
@@ -153,7 +153,7 @@ def monitor_snapshot():
         {
             "label": "MongoDB2",
             "status": "online",
-            "location_note": "Stores HongKong users, science and technology articles, HongKong reads, science and technology Be-Read, and weekly/monthly popular rank.",
+            "location_note": "Stores Hong Kong users, science and technology articles, Hong Kong reads, science and technology Be-Read, and weekly/monthly popular rank.",
             "collections": {
                 "users": safe_count(mongo2["users"]),
                 "articles": safe_count(mongo2["articles"]),
@@ -164,7 +164,7 @@ def monitor_snapshot():
             "managed_data": {
                 "regions": {
                     "Beijing": safe_count(mongo2["users"], {"region": "Beijing"}),
-                    "HongKong": safe_count(mongo2["users"], {"region": "HongKong"}),
+                    "Hong Kong": safe_count(mongo2["users"], {"region": "Hong Kong"}),
                 },
                 "article_categories": {
                     "science": safe_count(mongo2["articles"], {"category": "science"}),
@@ -222,21 +222,6 @@ def latest_ranks():
                         "authors": art.get("authors", "Unknown"),
                         "abstract": safe_preview(art.get("abstract", ""), 120),
                         "local_images": art.get("local_images", []),
-                    })
-        enriched[granularity] = rows
-    return enriched
-
-    enriched = {}
-    for granularity, doc in docs.items():
-        rows = []
-        if doc:
-            for aid in doc.get("articleAidList", []):
-                art = article_lookup(aid)
-                if art:
-                    rows.append({
-                        "aid": aid,
-                        "title": art.get("title", "Untitled"),
-                        "category": art.get("category", "unknown"),
                     })
         enriched[granularity] = rows
     return enriched
