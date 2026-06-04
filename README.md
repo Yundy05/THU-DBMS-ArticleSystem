@@ -131,6 +131,14 @@ chmod +x reset_and_load.sh
 ./reset_and_load.sh
 ```
 
+### Testing reading and inserting for given user id and article id into databases
+
+```bash
+chmod +x test_read_insert.sh
+./test_read_insert.sh {uid} {aid} 
+```
+
+
 ## Docker commands
 
 ```bash
