@@ -227,7 +227,8 @@ def latest_ranks():
                         "category":   art.get("category", "unknown"),
                         "authors":    art.get("authors",  "Unknown"),
                         "abstract":   safe_preview(art.get("abstract", ""), 120),
-                        "image_urls": image_urls,  # ✅ URL strings, not Path objects
+                        "image_urls": image_urls,  
+                        "video_url":  existing_video(art),
                     })
         enriched[granularity] = rows
     return enriched
@@ -342,6 +343,18 @@ def serve_image(aid, filename):
     article_dir = ROOT / "db-generation" / "articles" / f"article{aid}"
     return send_from_directory(article_dir, filename)
 
+def existing_video(article) -> str | None:
+    raw = article.get("video")
+    if not raw or str(raw).strip() == "":
+        return None
+    aid_digits = normalize_digits(article.get("aid"))
+    article_dir = ROOT / "db-generation" / "articles" / f"article{aid_digits}"
+    name = Path(str(raw).strip()).name
+    p = article_dir / name
+    if p.exists():
+        return f"/assets/image/{aid_digits}/{name}"
+    return None
+
 def user_lookup(uid: str) -> dict | None:
     return (
         db1()["users"].find_one({"uid": uid}, {"_id": 0}) or
@@ -435,6 +448,7 @@ def article_detail(aid: str):
 
     article["local_images"] = existing_image_candidates(article)
     article["text_info"]    = load_related_text(article)
+    article["video_url"]    = existing_video(article)
 
     category = article.get("category", "technology")
     beread   = beread_lookup(aid, category)

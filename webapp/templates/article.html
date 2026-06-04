@@ -24,6 +24,31 @@ block content %}
     <p>{{ article.text_info.preview }}</p>
     {% endif %}
 
+    {% if article.video_url %}
+    <div class="article-section article-video">
+      <h3>📹 Video</h3>
+
+      <video id="flv-player" controls
+        style="width:100%; max-width:720px; border-radius:14px; background:#000;">
+      </video>
+      <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+      <script>
+        if (flvjs.isSupported()) {
+          var player = flvjs.createPlayer({
+            type: 'flv',
+            url: '{{ article.video_url }}'
+          });
+          player.attachMediaElement(document.getElementById('flv-player'));
+          player.load();
+        } else {
+          document.getElementById('flv-player').outerHTML =
+            '<p>FLV not supported in this browser. ' +
+            '<a href="{{ article.video_url }}" download>Download video</a></p>';
+        }
+      </script>
+    </div>
+    {% endif %}
+
     <h3>Engagement stats</h3>
     {% if beread %}
     <p class="beread-source">
