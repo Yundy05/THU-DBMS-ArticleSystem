@@ -17,6 +17,15 @@ services:
     volumes:
       - mongo2_data:/data/db
 
+  mongo3:
+    image: mongo:7
+    container_name: mongo3
+    ports:
+      - "27019:27017"
+    volumes:
+    - mongo3_data:/data/db
+
 volumes:
   mongo1_data:
   mongo2_data:
+  mongo3_data:
