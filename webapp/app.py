@@ -1,9 +1,11 @@
-from flask import Flask, render_template, request, abort, send_from_directory
+from flask import Flask, render_template, request, abort, send_from_directory, jsonify
 from pathlib import Path
 import math
 import re
 import sys
 from datetime import datetime, UTC
+import time
+import uuid
 from pymongo import MongoClient
 import os
 
@@ -24,13 +26,7 @@ TEXT_ROOT = ROOT / "db-generation" / "bbc_news_texts"
 
 
 def db1_or_standby():
-    """Return DB1 if healthy, else fall back to DB3 hot standby."""
-    try:
-        client = get_mongo1()
-        client.admin.command("ping")  # fast liveness check
-        return client
-    except Exception:
-        return get_mongo3()
+        return  get_mongo1()
 
 def db2():
     return get_mongo2()
@@ -583,6 +579,120 @@ def run_queries_data() -> dict:
 @app.route("/queries")
 def queries_page():
     return render_template("queries.html", **run_queries_data())
+
+
+# ── write: record a read 
+
+def _route_reads_db(region: str):
+    """Return the correct reads node based on user region."""
+    return db1_or_standby() if region == "Beijing" else db2()
+
+def _beread_nodes(category: str):
+    """Return list of DBs that hold Be-Read for this category."""
+    if category == "science":
+        return [
+            (db1_or_standby(), "MongoDB1 (or MongoDB3 standby)"),
+            (db2(),            "MongoDB2"),
+        ]
+    return [(db2(), "MongoDB2")]  
+
+def insert_read(uid: str, aid: str, agree: str, comment: str,
+                comment_text: str, share: str) -> dict:
+    """
+    Full distributed write:
+      1. Insert into reads (fragmented by user region)
+      2. Update bereads (replicated for science, DB2-only for tech)
+    Returns a trace dict describing every node written.
+    """
+    # Resolve user + region
+    user = (db1_or_standby()["users"].find_one({"uid": uid}, {"region": 1}) or
+            db2()["users"].find_one({"uid": uid}, {"region": 1}))
+    if not user:
+        return {"ok": False, "error": f"User {uid} not found"}
+
+    region = user.get("region", "Hong Kong")
+
+    # Resolve article category
+    article = db2()["articles"].find_one({"aid": aid}, {"category": 1})
+    if not article:
+        return {"ok": False, "error": f"Article {aid} not found"}
+    category = article.get("category", "technology")
+
+    # Build read record  (agreeOrNot/commentOrNot/shareOrNot stored as "1"/"0" strings)
+    now_ms = int(time.time() * 1000)
+    read_id = str(uuid.uuid4().int)[:12]
+    read_doc = {
+        "id":            read_id,
+        "timestamp":     str(now_ms),
+        "uid":           uid,
+        "aid":           aid,
+        "readTimeLength": "60",
+        "agreeOrNot":    "1" if agree    == "1" else "0",
+        "commentOrNot":  "1" if comment  == "1" else "0",
+        "commentDetail": comment_text if comment == "1" else "",
+        "shareOrNot":    "1" if share    == "1" else "0",
+    }
+
+    trace = {"ok": True, "uid": uid, "aid": aid, "region": region,
+             "category": category, "writes": []}
+
+    # ── Write 1: Insert into reads ──
+    reads_db   = _route_reads_db(region)
+    reads_node = "MongoDB1" if region == "Beijing" else "MongoDB2"
+    reads_db["reads"].insert_one({**read_doc})
+    trace["writes"].append({
+        "node":       reads_node,
+        "collection": "reads",
+        "op":         "insert",
+        "reason":     f"User region={region} → fragmented to {reads_node}",
+    })
+
+    # ── Write 2: Update bereads ──
+    beread_update = {"$inc": {"readNum": 1}, "$push": {"readUidList": uid}}
+    if agree == "1":
+        beread_update["$inc"]["agreeNum"] = 1
+        beread_update["$push"]["agreeUidList"] = uid
+    if comment == "1":
+        beread_update["$inc"]["commentNum"] = 1
+        beread_update["$push"]["commentUidList"] = uid
+    if share == "1":
+        beread_update["$inc"]["shareNum"] = 1
+        beread_update["$push"]["shareUidList"] = uid
+
+    for br_db, node_label in _beread_nodes(category):
+        br_db["bereads"].update_one({"aid": aid}, beread_update, upsert=True)
+        trace["writes"].append({
+            "node":       node_label,
+            "collection": "bereads",
+            "op":         "update ($inc readNum, push uid)",
+            "reason":     f"Article category={category} → "
+                        f"{'replicated to DB1+DB2' if category=='science' else 'DB2 only'}",
+        })
+        
+        trace["writes"].append({
+            "node":       node_label,
+            "collection": "bereads",
+            "op":         "update ($inc readNum, push uid)",
+            "reason":     f"Article category={category} → {'replicated to DB1+DB2' if category=='science' else 'DB2 only'}",
+        })
+
+    return trace
+
+
+@app.route("/article/<aid>/read", methods=["POST"])
+def record_read(aid: str):
+    uid          = request.form.get("uid", "").strip()
+    agree        = request.form.get("agree",   "0")
+    comment      = request.form.get("comment", "0")
+    comment_text = request.form.get("comment_text", "")
+    share        = request.form.get("share",   "0")
+
+    if not uid:
+        return jsonify({"ok": False, "error": "uid is required"}), 400
+
+    result = insert_read(uid, aid, agree, comment, comment_text, share)
+    return jsonify(result)
+
 
 @app.errorhandler(404)
 def not_found(e):

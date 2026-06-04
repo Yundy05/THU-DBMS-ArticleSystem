@@ -49,93 +49,201 @@ block content %}
     </div>
     {% endif %}
 
-  <h3>Engagement stats</h3>
-    {% if beread %}
-    <p class="beread-source">
-      Sourced from
-      <strong>
-        {% if article.category == 'science' %}MongoDB1 (science replica) {% else
-        %}MongoDB2{% endif %}
-      </strong>
-      via Be-Read table
-    </p>
-    <div class="beread-grid">
-      <div class="beread-stat">
-        <span class="beread-num">{{ beread.readNum | default(0) }}</span>
-        <span class="beread-label">Reads</span>
+  <div class="detail-card" style="margin-top:1.5rem">
+    <h2 style="font-size:1rem;margin:0 0 1rem;text-transform:uppercase;
+                letter-spacing:.08em;color:var(--muted)">Engagement Stats</h2>
+
+    <div id="beread-stats">
+      {% if beread %}
+      <div class="meta four" style="margin-bottom:1.25rem">
+        <div>
+          <span>Reads</span>
+          <strong id="stat-reads">{{ beread.get('readNum', 0) }}</strong>
+        </div>
+        <div>
+          <span>Agrees</span>
+          <strong id="stat-agrees">{{ beread.get('agreeNum', 0) }}</strong>
+        </div>
+        <div>
+          <span>Comments</span>
+          <strong id="stat-comments">{{ beread.get('commentNum', 0) }}</strong>
+        </div>
+        <div>
+          <span>Shares</span>
+          <strong id="stat-shares">{{ beread.get('shareNum', 0) }}</strong>
+        </div>
       </div>
-      <div class="beread-stat">
-        <span class="beread-num">{{ beread.commentNum | default(0) }}</span>
-        <span class="beread-label">Comments</span>
-      </div>
-      <div class="beread-stat">
-        <span class="beread-num">{{ beread.agreeNum | default(0) }}</span>
-        <span class="beread-label">Agrees</span>
-      </div>
-      <div class="beread-stat">
-        <span class="beread-num">{{ beread.shareNum | default(0) }}</span>
-        <span class="beread-label">Shares</span>
-      </div>
+      <p class="muted" style="font-size:.8rem;margin:0 0 1.25rem">
+        Sourced from
+        <strong>{% if article.category == 'science' %}MongoDB1 + MongoDB2 (replicated)
+                {% else %}MongoDB2{% endif %}</strong>
+        via Be-Read table
+      </p>
+      {% else %}
+      <p class="muted" style="font-size:.85rem;margin:0 0 1.25rem">
+        No engagement data yet — run
+        <code>python scripts/derive_beread.py</code> to populate.
+      </p>
+      {% endif %}
     </div>
-    {% else %}
-    <p class="beread-empty">
-      No engagement data yet — run
-      <code>python scripts/derive_beread.py</code> to populate.
-    </p>
-    {% endif %}
+
+    <!-- Record a read form -->
+    <div style="border-top:1px solid var(--border);padding-top:1.25rem">
+      <h3 style="font-size:.88rem;font-weight:700;margin:0 0 1rem">
+        Record a Read
+        <span style="font-size:.75rem;font-weight:400;color:var(--muted);margin-left:.5rem">
+          Writes to reads + bereads — routed by user region
+        </span>
+      </h3>
+
+      <form id="read-form" style="display:grid;gap:.85rem">
+        <!-- UID input -->
+        <label style="display:grid;gap:.35rem;font-size:.85rem;font-weight:600">
+          User ID (uid)
+          <input type="text" id="input-uid" placeholder="e.g. 0"
+                style="padding:.65rem .85rem;border:1px solid var(--border);
+                        border-radius:10px;background:var(--bg);font-size:.9rem;width:200px">
+        </label>
+
+        <!-- Toggles -->
+        <div style="display:flex;gap:1rem;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;cursor:pointer">
+            <input type="checkbox" id="chk-agree" style="width:16px;height:16px">
+            Agree
+          </label>
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;cursor:pointer">
+            <input type="checkbox" id="chk-comment" style="width:16px;height:16px">
+            Comment
+          </label>
+          <label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;cursor:pointer">
+            <input type="checkbox" id="chk-share" style="width:16px;height:16px">
+            Share
+          </label>
+        </div>
+
+        <!-- Comment text (shown only if comment checked) -->
+        <div id="comment-box" style="display:none">
+          <textarea id="input-comment" placeholder="Comment text (optional)"
+                    style="width:100%;padding:.65rem .85rem;border:1px solid var(--border);
+                          border-radius:10px;background:var(--bg);font-size:.85rem;
+                          resize:vertical;min-height:70px"></textarea>
+        </div>
+
+        <!-- Submit -->
+        <div>
+          <button type="submit" id="submit-btn"
+                  style="padding:.75rem 1.75rem;background:var(--primary);color:#fff;
+                        border:none;border-radius:999px;font-weight:700;font-size:.9rem;
+                        cursor:pointer;transition:opacity .2s">
+            Record Read
+          </button>
+        </div>
+      </form>
+
+      <!-- Write trace output -->
+      <div id="write-trace" style="display:none;margin-top:1.25rem"></div>
+    </div>
   </div>
+
+  <script>
+  const aid = "{{ article.aid }}";
+
+  // Show/hide comment box
+  document.getElementById("chk-comment").addEventListener("change", function() {
+    document.getElementById("comment-box").style.display = this.checked ? "block" : "none";
+  });
+
+  // Form submit
+  document.getElementById("read-form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const uid  = document.getElementById("input-uid").value.trim();
+    if (!uid) { alert("Please enter a User ID"); return; }
+
+    const btn = document.getElementById("submit-btn");
+    btn.textContent = "Recording…";
+    btn.disabled = true;
+
+    const body = new URLSearchParams({
+      uid,
+      agree:        document.getElementById("chk-agree").checked   ? "1" : "0",
+      comment:      document.getElementById("chk-comment").checked ? "1" : "0",
+      comment_text: document.getElementById("input-comment").value,
+      share:        document.getElementById("chk-share").checked   ? "1" : "0",
+    });
+
+    try {
+      const res  = await fetch(`/article/${aid}/read`, { method: "POST", body });
+      const data = await res.json();
+      renderTrace(data);
+
+      // Update counters live if successful
+      if (data.ok) {
+        const reads    = document.getElementById("stat-reads");
+        const agrees   = document.getElementById("stat-agrees");
+        const comments = document.getElementById("stat-comments");
+        const shares   = document.getElementById("stat-shares");
+        if (reads)    reads.textContent    = (parseInt(reads.textContent)    || 0) + 1;
+        if (agrees && data.agree    === "1") agrees.textContent   = (parseInt(agrees.textContent)   || 0) + 1;
+        if (comments && data.comment === "1") comments.textContent = (parseInt(comments.textContent) || 0) + 1;
+        if (shares && data.share    === "1") shares.textContent   = (parseInt(shares.textContent)   || 0) + 1;
+      }
+    } catch(err) {
+      renderTrace({ ok: false, error: err.toString() });
+    }
+
+    btn.textContent = "Record Read";
+    btn.disabled = false;
+  });
+
+  function renderTrace(data) {
+    const el = document.getElementById("write-trace");
+    el.style.display = "block";
+
+    if (!data.ok) {
+      el.innerHTML = `
+        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;
+                    padding:1rem 1.25rem;color:#b91c1c;font-size:.85rem">
+          ❌ Error: ${data.error}
+        </div>`;
+      return;
+    }
+
+    const writeRows = data.writes.map(w => `
+      <tr>
+        <td style="padding:.45rem .75rem;font-weight:600;color:#1d4ed8">${w.node}</td>
+        <td style="padding:.45rem .75rem;font-family:monospace;font-size:.8rem">${w.collection}</td>
+        <td style="padding:.45rem .75rem;font-family:monospace;font-size:.8rem">${w.op}</td>
+        <td style="padding:.45rem .75rem;color:#6b7280;font-size:.8rem">${w.reason}</td>
+      </tr>`).join("");
+
+    el.innerHTML = `
+      <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;
+                  padding:1rem 1.25rem;animation:slide-in .3s ease">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.85rem">
+          <span style="font-size:1.1rem">✅</span>
+          <strong style="color:#15803d">Write successful</strong>
+          <span style="font-size:.8rem;color:#6b7280;margin-left:.5rem">
+            uid=${data.uid} · aid=${data.aid} · region=${data.region} · category=${data.category}
+          </span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:.83rem">
+          <thead>
+            <tr style="border-bottom:1px solid #d1fae5">
+              <th style="text-align:left;padding:.3rem .75rem;color:#6b7280;font-size:.75rem;
+                        text-transform:uppercase;letter-spacing:.05em">Node</th>
+              <th style="text-align:left;padding:.3rem .75rem;color:#6b7280;font-size:.75rem;
+                        text-transform:uppercase;letter-spacing:.05em">Collection</th>
+              <th style="text-align:left;padding:.3rem .75rem;color:#6b7280;font-size:.75rem;
+                        text-transform:uppercase;letter-spacing:.05em">Operation</th>
+              <th style="text-align:left;padding:.3rem .75rem;color:#6b7280;font-size:.75rem;
+                        text-transform:uppercase;letter-spacing:.05em">Routing reason</th>
+            </tr>
+          </thead>
+          <tbody>${writeRows}</tbody>
+        </table>
+      </div>`;
+  }
+  </script>
 </section>
 {% endblock %}
 
-<style>
-
-  .beread-section {
-    margin-top: 2rem;
-    padding: 1.25rem 1.4rem;
-    background: #fff;
-    border: 1px solid #e4e4e7;
-    border-radius: 16px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-  }
-  .beread-section h3 {
-    margin-bottom: 0.4rem;
-  }
-  .beread-source {
-    font-size: 0.83rem;
-    color: #888;
-    margin-bottom: 1rem;
-  }
-  .beread-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.75rem;
-  }
-  .beread-stat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 0.9rem 0.5rem;
-    background: #f7f7f9;
-    border-radius: 12px;
-  }
-  .beread-num {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: #4f46e5;
-    line-height: 1;
-  }
-  .beread-label {
-    font-size: 0.8rem;
-    color: #777;
-    margin-top: 0.3rem;
-  }
-  .beread-empty {
-    color: #888;
-    font-size: 0.9rem;
-  }
-  @media (max-width: 500px) {
-    .beread-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-</style>
