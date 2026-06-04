@@ -10,7 +10,8 @@ import os
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 try:
-    from src.db.connections import get_mongo1, get_mongo2, get_mongo3, node_status
+    from src.db.connections import get_mongo1, get_mongo2, get_mongo3, node_status, _db1_failed
+    
 except Exception as e:
     raise RuntimeError(
         "Could not import src.db.connections. Check your repo structure and connections.py"
@@ -516,8 +517,10 @@ def jinja_enumerate(iterable, start=0):
 
 def _which_db1_node() -> str:
     """Return label for whichever node get_mongo1() is currently using."""
+    if _db1_failed:
+        return "MongoDB3 (hot standby 🔴 failover active)"
     try:
-        MongoClient(os.getenv("MONGO1_URI"), serverSelectionTimeoutMS=1500).admin.command("ping")
+        MongoClient(os.getenv("MONGO1_URI"), serverSelectionTimeoutMS=500).admin.command("ping")
         return "MongoDB1"
     except Exception:
         return "MongoDB3 (hot standby 🔴 failover active)"
