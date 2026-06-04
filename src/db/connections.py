@@ -71,6 +71,7 @@ def node_status() -> dict:
     """Returns online/offline/standby status for all three nodes."""
     global _db1_failed
     statuses = {}
+
     for name, uri in [
         ("MongoDB1", os.getenv("MONGO1_URI")),
         ("MongoDB2", os.getenv("MONGO2_URI")),
@@ -86,8 +87,13 @@ def node_status() -> dict:
     if statuses["MongoDB1"] == "online":
         _db1_failed = False
 
-    # DB3 is standby when online
-    if statuses["MongoDB3"] == "online":
+    # DB3 role:
+    # - DB1 online  + DB3 online  → DB3 is standby (yellow)
+    # - DB1 offline + DB3 online  → DB3 is active (green)
+    if statuses["MongoDB3"] == "online" and statuses["MongoDB1"] == "online":
         statuses["MongoDB3"] = "standby"
+    # otherwise:
+    #   - if DB3 is online and DB1 is offline, leave DB3 as "online"
+    #   - if DB3 is offline, it stays "offline"
 
     return statuses

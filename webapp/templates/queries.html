@@ -12,21 +12,20 @@
   </div>
 
   <!-- Node status bar (auto-refreshes every 5s via JS) -->
-  <div class="node-bar" id="node-bar">
-    {% set statuses = {"MongoDB1": "online", "MongoDB2": "online", "MongoDB3": "standby"} %}
-    {% if failover %}
-      {% set statuses = {"MongoDB1": "offline", "MongoDB2": "online", "MongoDB3": "standby"} %}
-    {% endif %}
-    {% for name, status in [("MongoDB1", "offline" if failover else "online"),
-                             ("MongoDB2", "online"),
-                             ("MongoDB3", "standby")] %}
-    <div class="node-pill {{ status }}">
-      <span class="node-dot"></span>
-      {{ name }}{% if name == "MongoDB3" %} (hot standby){% endif %}
-      &nbsp;·&nbsp;{{ status }}
-    </div>
+    <div class="node-bar" id="node-bar">
+    {% for name, status in [
+            ("MongoDB1", "offline" if failover else "online"),
+            ("MongoDB2", "online"),
+            ("MongoDB3", "online" if failover else "standby")
+        ] %}
+        <div class="node-pill {{ status }}">
+        <span class="node-dot"></span>
+        {{ name }}{% if name == "MongoDB3" %} (hot standby){% endif %}
+        &nbsp;·&nbsp;{{ status }}
+        </div>
     {% endfor %}
-  </div>
+    </div>
+
   <p class="refresh-hint" id="refresh-timer">Refreshing node status in <span id="countdown">5</span>s</p>
 
   <!-- Failover / OK banner -->

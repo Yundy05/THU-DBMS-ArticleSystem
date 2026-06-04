@@ -12,7 +12,7 @@ import os
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 try:
-    from src.db.connections import get_mongo1, get_mongo2, get_mongo3, node_status, _db1_failed
+    from src.db.connections import get_mongo1, get_mongo2, get_mongo3, node_status
     
 except Exception as e:
     raise RuntimeError(
@@ -512,70 +512,76 @@ def jinja_enumerate(iterable, start=0):
     return list(enumerate(iterable, start=start))
 
 def _which_db1_node() -> str:
-    """Return label for whichever node get_mongo1() is currently using."""
-    if _db1_failed:
-        return "MongoDB3 (hot standby 🔴 failover active)"
+    """Return label for whichever node is currently serving DB1 traffic."""
     try:
-        MongoClient(os.getenv("MONGO1_URI"), serverSelectionTimeoutMS=500).admin.command("ping")
+        MongoClient(os.getenv("MONGO1_URI"),
+                    serverSelectionTimeoutMS=500).admin.command("ping")
         return "MongoDB1"
     except Exception:
-        return "MongoDB3 (hot standby 🔴 failover active)"
+        return "MongoDB3 (hot standby active)"
 
 def run_queries_data() -> dict:
     db1_node = _which_db1_node()
-    failover = "failover" in db1_node
+    failover = "MongoDB3" in db1_node  # True when DB3 is serving DB1 role
 
     # Query 1 & 2: Users by region
-    users_beijing = list(db1_or_standby()["users"].find({"region": "Beijing"}).limit(5))  # ← was db1()
-    users_hk      = list(db2()["users"].find({"region": "Hong Kong"}).limit(5))
+    users_beijing = list(db1_or_standby()["users"]
+                         .find({"region": "Beijing"}).limit(5))
+    users_hk      = list(db2()["users"]
+                        .find({"region": "Hong Kong"}).limit(5))
 
     # Query 3 & 4: Articles by category
     articles_sci  = list(db2()["articles"].find({"category": "science"}).limit(5))
     articles_tech = list(db2()["articles"].find({"category": "technology"}).limit(5))
 
     # Query 5: Distributed join — user reads
-    uid = "0"
-    user = db1_or_standby()["users"].find_one({"uid": uid}) or db2()["users"].find_one({"uid": uid})  # ← was db1()
+    uid   = "0"
+    user  = db1_or_standby()["users"].find_one({"uid": uid}) or db2()["users"].find_one({"uid": uid})
     reads_enriched = []
-    reads_node = "—"
+    reads_node     = "—"
     if user:
-        region = user.get("region", "Hong Kong")
-        reads_db = db1_or_standby() if region == "Beijing" else db2()  # ← was db1()
+        region   = user.get("region", "Hong Kong")
+        reads_db = db1_or_standby() if region == "Beijing" else db2()
         reads_node = db1_node if region == "Beijing" else "MongoDB2"
         for r in reads_db["reads"].find({"uid": uid}).limit(5):
             art = db2()["articles"].find_one({"aid": r.get("aid")}, {"title": 1, "category": 1})
-            reads_enriched.append({**r, "title": (art or {}).get("title", "?"),
-                                    "category": (art or {}).get("category", "?")})
+            reads_enriched.append({
+                **r,
+                "title":    (art or {}).get("title", "?"),
+                "category": (art or {}).get("category", "?"),
+            })
 
     # Query 6: Top-5 popular
     ranks = {}
     for gran, source_db, node in [
-        ("daily",   db1_or_standby(), db1_node),  # ← was db1()
-        ("weekly",  db2(), "MongoDB2"),
-        ("monthly", db2(), "MongoDB2"),
+        ("daily",   db1_or_standby(), db1_node),
+        ("weekly",  db2(),            "MongoDB2"),
+        ("monthly", db2(),            "MongoDB2"),
     ]:
-        doc = source_db["popular_rank"].find_one({"temporalGranularity": gran})
+        doc  = source_db["popular_rank"].find_one({"temporalGranularity": gran})
         rows = []
         if doc:
             for aid in doc.get("articleAidList", [])[:5]:
                 art = db2()["articles"].find_one({"aid": aid}, {"title": 1, "category": 1})
-                rows.append({"aid": aid, "title": (art or {}).get("title", "?"),
-                             "category": (art or {}).get("category", "?")})
+                rows.append({
+                    "aid":      aid,
+                    "title":    (art or {}).get("title", "?"),
+                    "category": (art or {}).get("category", "?"),
+                })
         ranks[gran] = {"node": node, "rows": rows}
 
     return {
-        "db1_node": db1_node,
-        "failover": failover,
-        "users_beijing": users_beijing,
-        "users_hk": users_hk,
-        "articles_sci": articles_sci,
-        "articles_tech": articles_tech,
-        "user": user,
+        "db1_node":       db1_node,
+        "failover":       failover,
+        "users_beijing":  users_beijing,
+        "users_hk":       users_hk,
+        "articles_sci":   articles_sci,
+        "articles_tech":  articles_tech,
+        "user":           user,
         "reads_enriched": reads_enriched,
-        "reads_node": reads_node,
-        "ranks": ranks,
+        "reads_node":     reads_node,
+        "ranks":          ranks,
     }
-
 @app.route("/queries")
 def queries_page():
     return render_template("queries.html", **run_queries_data())
@@ -668,13 +674,7 @@ def insert_read(uid: str, aid: str, agree: str, comment: str,
             "reason":     f"Article category={category} → "
                         f"{'replicated to DB1+DB2' if category=='science' else 'DB2 only'}",
         })
-        
-        trace["writes"].append({
-            "node":       node_label,
-            "collection": "bereads",
-            "op":         "update ($inc readNum, push uid)",
-            "reason":     f"Article category={category} → {'replicated to DB1+DB2' if category=='science' else 'DB2 only'}",
-        })
+    
 
     return trace
 
