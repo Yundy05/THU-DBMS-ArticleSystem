@@ -81,6 +81,9 @@
           <div class="card-top">
             <span class="chip">{{ article.category }}</span>
             <span class="aid">AID {{ article.aid }}</span>
+              {% if article.video_url %}
+                <span class="video-badge">🎬</span>
+              {% endif %}
           </div>
 
           {% if article.local_images %}

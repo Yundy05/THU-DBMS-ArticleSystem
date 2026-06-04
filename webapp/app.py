@@ -279,6 +279,7 @@ def home():
         a["local_images"] = existing_image_candidates(a)
         a["text_info"] = load_related_text(a)
         a["text_preview"] = a["text_info"]["preview"] if a["text_info"] else None
+        a["video_url"]    = existing_video(a)
         articles.append(a)
 
     totals = {

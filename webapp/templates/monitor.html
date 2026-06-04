@@ -258,14 +258,9 @@ content %}
           {% endif %}
             <div class="popular-body">
               {% if item.video_url %}
-                <span style="
-                  display:inline-block; margin-top:0.4rem;
-                  padding:0.2rem 0.55rem; border-radius:999px;
-                  background:#fef3c7; color:#92400e;
-                  font-size:0.78rem; font-weight:600;
-                ">🎬 Video</span>
+              <span class="video-badge">🎬</span>
               {% endif %}
-              
+
               <p class="rank-label">
                 AID {{ item.aid }} · {{ item.category|title }}
               </p>
