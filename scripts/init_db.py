@@ -11,7 +11,7 @@ def init():
         db["articles"].create_index("aid")
         db["reads"].create_index([("uid", 1), ("aid", 1)])
         db["bereads"].create_index("aid")
-        db["popular_ranks"].create_index([("granularity", 1), ("timestamp", -1)])
+        db["popular_rank"].create_index([("granularity", 1), ("timestamp", -1)])
         print(f"{name} All indexes created successfully.")
         
 if __name__ == "__main__":

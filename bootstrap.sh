@@ -30,7 +30,7 @@ python scripts/load_reads.py
 echo "Done loading base tables."
 
 echo "Loading bereads..."
-python scripts/load_reads.py
+python scripts/derive_beread.py
 
 echo "Loading popular rankings..."
 python scripts/derive_popular_rank.py
