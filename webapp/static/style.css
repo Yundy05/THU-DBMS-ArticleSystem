@@ -321,4 +321,19 @@ nav {
     flex-direction: column;
     align-items: flex-start
   }
+
+  .status-badge.standby {
+    background: #fefce8;
+    color: #854d0e;
+  }
+
+  .status-badge.offline {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+
+  .status-badge.online {
+    background: #ecfdf3;
+    color: #157347;
+  }
 }

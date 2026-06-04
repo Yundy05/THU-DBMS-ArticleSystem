@@ -14,6 +14,11 @@ until docker exec mongo2 mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok
   sleep 2
 done
 
+echo "Waiting for mongo3..."
+until docker exec mongo3 mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" >/dev/null 2>&1; do
+  sleep 2
+done
+
 echo "Installing dependencies..."
 pip install -r requirements.txt
 
@@ -36,4 +41,8 @@ python scripts/derive_beread.py
 
 echo "Loading popular rankings..."
 python scripts/derive_popular_rank.py
-echo "Bootstrap complete."
+
+echo "Syncing DB1 → DB3 (hot standby)..."
+python scripts/sync_standby.py --full
+
+echo "Reset and load complete."

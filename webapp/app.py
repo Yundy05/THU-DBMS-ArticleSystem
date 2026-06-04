@@ -8,7 +8,7 @@ from datetime import datetime, UTC
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 try:
-    from src.db.connections import get_mongo1, get_mongo2
+    from src.db.connections import get_mongo1, get_mongo2, get_mongo3, node_status
 except Exception as e:
     raise RuntimeError(
         "Could not import src.db.connections. Check your repo structure and connections.py"
@@ -26,7 +26,10 @@ def db1():
 
 def db2():
     return get_mongo2()
+    
 
+def db3():
+    return get_mongo3()
 
 def parse_csv(value):
     if not value:
@@ -118,65 +121,84 @@ def safe_count(coll, query=None):
     except Exception:
         return 0
 
+def _db3_collections():
+    try:
+        mongo3 = db3()
+        return {
+            "users":        safe_count(mongo3["users"]),
+            "articles":     safe_count(mongo3["articles"]),
+            "reads":        safe_count(mongo3["reads"]),
+            "bereads":      safe_count(mongo3["bereads"]),
+            "popular_rank": safe_count(mongo3["popular_rank"]),
+        }
+    except Exception:
+        return {}
 
 def monitor_snapshot():
     mongo1 = db1()
     mongo2 = db2()
-
+    statuses = node_status()   # live ping: "online" / "standby" / "offline"
     return [
         {
             "label": "MongoDB1",
-            "status": "online",
+            "status": statuses.get("MongoDB1", "offline"),
             "location_note": "Stores Beijing users, science articles replica, Beijing reads, science Be-Read replica, and daily popular rank.",
             "collections": {
-                "users": safe_count(mongo1["users"]),
-                "articles": safe_count(mongo1["articles"]),
-                "reads": safe_count(mongo1["reads"]),
-                "bereads": safe_count(mongo1["bereads"]),
+                "users":        safe_count(mongo1["users"]),
+                "articles":     safe_count(mongo1["articles"]),
+                "reads":        safe_count(mongo1["reads"]),
+                "bereads":      safe_count(mongo1["bereads"]),
                 "popular_rank": safe_count(mongo1["popular_rank"]),
             },
             "managed_data": {
                 "regions": {
-                    "Beijing": safe_count(mongo1["users"], {"region": "Beijing"}),
+                    "Beijing":   safe_count(mongo1["users"], {"region": "Beijing"}),
                     "Hong Kong": safe_count(mongo1["users"], {"region": "Hong Kong"}),
                 },
                 "article_categories": {
-                    "science": safe_count(mongo1["articles"], {"category": "science"}),
+                    "science":    safe_count(mongo1["articles"], {"category": "science"}),
                     "technology": safe_count(mongo1["articles"], {"category": "technology"}),
                 },
-                "popular_rank_granularity": {
-                    "daily": safe_count(mongo1["popular_rank"], {"temporalGranularity": "daily"}),
-                    "weekly": safe_count(mongo1["popular_rank"], {"temporalGranularity": "weekly"}),
+                                "popular_rank_granularity": {
+                    "daily":   safe_count(mongo1["popular_rank"], {"temporalGranularity": "daily"}),
+                    "weekly":  safe_count(mongo1["popular_rank"], {"temporalGranularity": "weekly"}),
                     "monthly": safe_count(mongo1["popular_rank"], {"temporalGranularity": "monthly"}),
                 },
             },
         },
         {
             "label": "MongoDB2",
-            "status": "online",
+            "status": statuses.get("MongoDB2", "offline"),
             "location_note": "Stores Hong Kong users, science and technology articles, Hong Kong reads, science and technology Be-Read, and weekly/monthly popular rank.",
             "collections": {
-                "users": safe_count(mongo2["users"]),
-                "articles": safe_count(mongo2["articles"]),
-                "reads": safe_count(mongo2["reads"]),
-                "bereads": safe_count(mongo2["bereads"]),
+                "users":        safe_count(mongo2["users"]),
+                "articles":     safe_count(mongo2["articles"]),
+                "reads":        safe_count(mongo2["reads"]),
+                "bereads":      safe_count(mongo2["bereads"]),
                 "popular_rank": safe_count(mongo2["popular_rank"]),
             },
             "managed_data": {
                 "regions": {
-                    "Beijing": safe_count(mongo2["users"], {"region": "Beijing"}),
+                    "Beijing":   safe_count(mongo2["users"], {"region": "Beijing"}),
                     "Hong Kong": safe_count(mongo2["users"], {"region": "Hong Kong"}),
                 },
                 "article_categories": {
-                    "science": safe_count(mongo2["articles"], {"category": "science"}),
+                    "science":    safe_count(mongo2["articles"], {"category": "science"}),
                     "technology": safe_count(mongo2["articles"], {"category": "technology"}),
                 },
                 "popular_rank_granularity": {
-                    "daily": safe_count(mongo2["popular_rank"], {"temporalGranularity": "daily"}),
-                    "weekly": safe_count(mongo2["popular_rank"], {"temporalGranularity": "weekly"}),
+                    "daily":   safe_count(mongo2["popular_rank"], {"temporalGranularity": "daily"}),
+                    "weekly":  safe_count(mongo2["popular_rank"], {"temporalGranularity": "weekly"}),
                     "monthly": safe_count(mongo2["popular_rank"], {"temporalGranularity": "monthly"}),
                 },
             },
+        },
+        {
+            "label": "MongoDB3 (Hot Standby)",
+            "status": statuses.get("MongoDB3", "offline"),
+            "location_note": "Hot standby for MongoDB1. Automatically takes over if DB1 goes offline. Mirrors: Beijing users, science articles, Beijing reads, science Be-Read, daily popular rank.",
+            "collections": _db3_collections() if statuses.get("MongoDB3") != "offline" else {},
+            "managed_data": {},
         },
     ]
 

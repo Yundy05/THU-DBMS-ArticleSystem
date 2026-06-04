@@ -16,13 +16,19 @@ content %}
       <article class="monitor-card">
         <div class="card-header">
           <h3>{{ node.label }}</h3>
-          <span class="status-badge">{{ node.status }}</span>
+          <span class="status-badge">{{ node.status }}
+              {% if node.status == 'online' %}🟢 
+              {% elif node.status == 'standby' %}🟡 
+              {% else %}🔴 
+              {% endif %}
+          </span>
         </div>
 
         <p class="muted centered">{{ node.location_note }}</p>
 
         <div class="info-block">
           <h4>Collections</h4>
+          {% if node.collections %}
           <div class="stat-list">
             {% for name, count in node.collections.items() %}
             <div class="stat-row">
@@ -31,45 +37,61 @@ content %}
             </div>
             {% endfor %}
           </div>
+          {% else %}
+          <p class="muted" style="font-size:0.85rem; margin-top:0.4rem;">
+            Node offline — no collection data available.
+          </p>
+          {% endif %}
         </div>
 
-        {% if node.managed_data is defined %}
-        <div class="info-block">
-          <h4>Managed data</h4>
+      {% if node.managed_data %}
+      <div class="info-block">
+        <h4>Managed data</h4>
 
-          <p class="mini-title">Users by region</p>
-          <div class="stat-list">
-            {% for name, count in node.managed_data.regions.items() %}
-            <div class="stat-row">
-              <span>{{ name }}</span>
-              <strong>{{ count }}</strong>
-            </div>
-            {% endfor %}
+        {% if node.managed_data.regions %}
+        <p class="mini-title">Users by region</p>
+        <div class="stat-list">
+          {% for name, count in node.managed_data.regions.items() %}
+          <div class="stat-row">
+            <span>{{ name }}</span>
+            <strong>{{ count }}</strong>
           </div>
-
-          <p class="mini-title">Articles by category</p>
-          <div class="stat-list">
-            {% for name, count in node.managed_data.article_categories.items()
-            %}
-            <div class="stat-row">
-              <span>{{ name|title }}</span>
-              <strong>{{ count }}</strong>
-            </div>
-            {% endfor %}
-          </div>
-
-          <p class="mini-title">Popular rank granularity</p>
-          <div class="stat-list">
-            {% for name, count in
-            node.managed_data.popular_rank_granularity.items() %}
-            <div class="stat-row">
-              <span>{{ name|title }}</span>
-              <strong>{{ count }}</strong>
-            </div>
-            {% endfor %}
-          </div>
+          {% endfor %}
         </div>
         {% endif %}
+
+        {% if node.managed_data.article_categories %}
+        <p class="mini-title">Articles by category</p>
+        <div class="stat-list">
+          {% for name, count in node.managed_data.article_categories.items() %}
+          <div class="stat-row">
+            <span>{{ name|title }}</span>
+            <strong>{{ count }}</strong>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if node.managed_data.popular_rank_granularity %}
+        <p class="mini-title">Popular rank granularity</p>
+        <div class="stat-list">
+          {% for name, count in node.managed_data.popular_rank_granularity.items() %}
+          <div class="stat-row">
+            <span>{{ name|title }}</span>
+            <strong>{{ count }}</strong>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="info-block standby-note">
+        <h4>Managed data</h4>
+        <p class="muted" style="font-size:0.85rem; margin-top:0.4rem;">
+          🔁 Hot standby — mirrors MongoDB1. See DB1 for managed data breakdown.
+        </p>
+      </div>
+      {% endif %}
       </article>
       {% endfor %}
     </div>
