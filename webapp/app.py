@@ -20,9 +20,14 @@ IMAGE_DIR = ROOT / "db-generation" / "image"
 TEXT_ROOT = ROOT / "db-generation" / "bbc_news_texts"
 
 
-def db1():
-    return get_mongo1()
-
+def db1_or_standby():
+    """Return DB1 if healthy, else fall back to DB3 hot standby."""
+    try:
+        client = get_mongo1()
+        client.admin.command("ping")  # fast liveness check
+        return client
+    except Exception:
+        return get_mongo3()
 
 def db2():
     return get_mongo2()
@@ -40,7 +45,7 @@ def parse_csv(value):
 
 
 def article_lookup(aid):
-    return db2()["articles"].find_one({"aid": aid}, {"_id": 0}) or db1()["articles"].find_one({"aid": aid}, {"_id": 0})
+    return db2()["articles"].find_one({"aid": aid}, {"_id": 0}) or db1_or_standby()["articles"].find_one({"aid": aid}, {"_id": 0})
 
 
 def safe_preview(text, n=220):
@@ -133,9 +138,10 @@ def _db3_collections():
         }
     except Exception:
         return {}
+    
 
 def monitor_snapshot():
-    mongo1 = db1()
+    mongo1 = db1_or_standby()
     mongo2 = db2()
     statuses = node_status()   # live ping: "online" / "standby" / "offline"
     return [
@@ -204,7 +210,7 @@ def monitor_snapshot():
 
 
 def workload_summary():
-    mongo1 = db1()
+    mongo1 = db1_or_standby()
     mongo2 = db2()
 
     return {
@@ -225,7 +231,7 @@ def workload_summary():
 
 def latest_ranks():
     docs = {
-        "daily":   db1()["popular_rank"].find_one({"temporalGranularity": "daily"},   {"_id": 0}),
+        "daily":   db1_or_standby()["popular_rank"].find_one({"temporalGranularity": "daily"},   {"_id": 0}),
         "weekly":  db2()["popular_rank"].find_one({"temporalGranularity": "weekly"},  {"_id": 0}),
         "monthly": db2()["popular_rank"].find_one({"temporalGranularity": "monthly"}, {"_id": 0}),
     }
@@ -306,7 +312,7 @@ def home():
 
     totals = {
         "articles": db2()["articles"].count_documents({}),
-        "reads": db1()["reads"].count_documents({}) + db2()["reads"].count_documents({}),
+        "reads": db1_or_standby()["reads"].count_documents({}) + db2()["reads"].count_documents({}),
         "science": db2()["articles"].count_documents({"category": "science"}),
         "technology": db2()["articles"].count_documents({"category": "technology"}),
     }
@@ -327,7 +333,7 @@ def home():
 
 def replica_consistency():
     try:
-        d1, d2 = db1(), db2()
+        d1, d2 = db1_or_standby(), db2()
         sci1 = d1["articles"].count_documents({"category": "science"})
         sci2 = d2["articles"].count_documents({"category": "science"})
         br1  = d1["bereads"].count_documents({})
@@ -340,6 +346,19 @@ def replica_consistency():
             {"aid": sample1["aid"]}, {"_id": 0, "aid": 1, "title": 1}
         ) if sample1 else None
         record_match = (sample1 == sample2) if sample1 and sample2 else None
+        try:
+            d3 = db3()
+            reads3  = safe_count(d3["reads"])
+            reads1  = safe_count(db1_or_standby()["reads"])
+            users3  = safe_count(d3["users"])
+            users1  = safe_count(db1_or_standby()["users"])
+            standby_sync = {
+                "reads":  {"db1": reads1,  "db3": reads3,  "match": reads1 == reads3},
+                "users":  {"db1": users1,  "db3": users3,  "match": users1 == users3},
+            }
+        except Exception:
+            standby_sync = None
+            
         return {
             "science_articles": {"db1": sci1, "db2": sci2, "match": sci1 == sci2},
             "bereads":          {"db1": br1,  "db2": br2},
@@ -348,8 +367,10 @@ def replica_consistency():
                 "aid":   (sample1 or {}).get("aid", "N/A"),
                 "match": record_match,
             },
+            "standby_sync":     standby_sync,
         }
     except Exception as e:
+        
         return {"error": str(e)}
 
 @app.route("/monitor")
@@ -359,6 +380,7 @@ def monitor():
         snapshot=monitor_snapshot(),
         ranks=latest_ranks(),
         consistency=replica_consistency(),
+        workload=workload_summary(),
     )
 
 @app.route("/assets/image/<aid>/<filename>")
@@ -380,14 +402,14 @@ def existing_video(article) -> str | None:
 
 def user_lookup(uid: str) -> dict | None:
     return (
-        db1()["users"].find_one({"uid": uid}, {"_id": 0}) or
+        db1_or_standby()["users"].find_one({"uid": uid}, {"_id": 0}) or
         db2()["users"].find_one({"uid": uid}, {"_id": 0})
     )
     
 def beread_lookup(aid: str, category: str) -> dict | None:
     if category == "science":
         return (
-            db1()["bereads"].find_one({"aid": aid}, {"_id": 0}) or
+            db1_or_standby()["bereads"].find_one({"aid": aid}, {"_id": 0}) or
             db2()["bereads"].find_one({"aid": aid}, {"_id": 0})
         )
     return db2()["bereads"].find_one({"aid": aid}, {"_id": 0})
@@ -411,9 +433,9 @@ def users():
 
     # Route to correct node; no region = merge both (up to per_page each)
     if region == "Beijing":
-        results = list(db1()["users"].find(query, {"_id": 0})
+        results = list(db1_or_standby()["users"].find(query, {"_id": 0})
                        .skip((page - 1) * per_page).limit(per_page))
-        total   = db1()["users"].count_documents(query)
+        total   = db1_or_standby()["users"].count_documents(query)
     elif region == "Hong Kong":
         results = list(db2()["users"].find(query, {"_id": 0})
                        .skip((page - 1) * per_page).limit(per_page))
@@ -422,10 +444,10 @@ def users():
         half  = per_page // 2
         skip1 = max((page - 1) * half, 0)
         results = (
-            list(db1()["users"].find(query, {"_id": 0}).skip(skip1).limit(half)) +
+            list(db1_or_standby()["users"].find(query, {"_id": 0}).skip(skip1).limit(half)) +
             list(db2()["users"].find(query, {"_id": 0}).skip(skip1).limit(half))
         )
-        total = (db1()["users"].count_documents(query) +
+        total = (db1_or_standby()["users"].count_documents(query) +
                  db2()["users"].count_documents(query))
 
     pages = max(math.ceil(total / per_page), 1)
@@ -443,7 +465,7 @@ def user_reads(uid: str):
 
     # Reads are fragmented by user region — route to correct node
     node_region = user.get("region", "Hong Kong")
-    reads_db    = db1() if node_region == "Beijing" else db2()
+    reads_db    = db1_or_standby() if node_region == "Beijing" else db2()
     raw_reads   = list(reads_db["reads"].find({"uid": uid}, {"_id": 0}).limit(50))
 
     # Enrich each read record with article info (the join)

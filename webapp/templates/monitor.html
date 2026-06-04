@@ -247,6 +247,28 @@ content %}
             else %}⚠ Could not compare {% endif %}
           </span>
         </div>
+        {% if consistency.standby_sync %}
+        <div class="consistency-row">
+          <div class="consistency-label">
+            <span class="c-icon">🔄</span>
+            <div>
+              <strong>DB3 Hot Standby sync</strong>
+              <p class="muted">DB3 should mirror DB1 reads and users exactly</p>
+            </div>
+          </div>
+          <div class="consistency-values">
+            <span class="node-pill">Reads DB1&nbsp;<strong>{{ consistency.standby_sync.reads.db1 }}</strong></span>
+            <span class="node-pill">Reads DB3&nbsp;<strong>{{ consistency.standby_sync.reads.db3 }}</strong></span>
+          </div>
+          <span class="match-badge {% if consistency.standby_sync.reads.match and consistency.standby_sync.users.match %}match{% else %}mismatch{% endif %}">
+            {% if consistency.standby_sync.reads.match and consistency.standby_sync.users.match %}
+              ✅ Fully synced
+            {% else %}
+              ❌ Out of sync — run sync_standby.py
+            {% endif %}
+          </span>
+        </div>
+        {% endif %}
       </div>
       {% endif %}
     </div>
