@@ -3,6 +3,7 @@ from pathlib import Path
 import math
 import re
 import sys
+from datetime import datetime, UTC
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -202,8 +203,8 @@ def workload_summary():
 
 def latest_ranks():
     docs = {
-        "daily": db1()["popular_rank"].find_one({"temporalGranularity": "daily"}, {"_id": 0}),
-        "weekly": db2()["popular_rank"].find_one({"temporalGranularity": "weekly"}, {"_id": 0}),
+        "daily":   db1()["popular_rank"].find_one({"temporalGranularity": "daily"},   {"_id": 0}),
+        "weekly":  db2()["popular_rank"].find_one({"temporalGranularity": "weekly"},  {"_id": 0}),
         "monthly": db2()["popular_rank"].find_one({"temporalGranularity": "monthly"}, {"_id": 0}),
     }
 
@@ -214,14 +215,19 @@ def latest_ranks():
             for aid in doc.get("articleAidList", [])[:5]:
                 art = article_lookup(aid)
                 if art:
-                    art["local_images"] = existing_image_candidates(art)
+                    # ✅ Convert Path objects → URL strings for serve_image
+                    aid_digits = normalize_digits(aid)
+                    image_urls = []
+                    for p in existing_image_candidates(art):
+                        image_urls.append(f"/assets/image/{aid_digits}/{p.name}")
+
                     rows.append({
-                        "aid": aid,
-                        "title": art.get("title", "Untitled"),
-                        "category": art.get("category", "unknown"),
-                        "authors": art.get("authors", "Unknown"),
-                        "abstract": safe_preview(art.get("abstract", ""), 120),
-                        "local_images": art.get("local_images", []),
+                        "aid":        aid,
+                        "title":      art.get("title",    "Untitled"),
+                        "category":   art.get("category", "unknown"),
+                        "authors":    art.get("authors",  "Unknown"),
+                        "abstract":   safe_preview(art.get("abstract", ""), 120),
+                        "image_urls": image_urls,  # ✅ URL strings, not Path objects
                     })
         enriched[granularity] = rows
     return enriched
@@ -294,20 +300,33 @@ def home():
         snapshot=monitor_snapshot(),
     )
     
-@app.route("/article/<aid>")
-def article_detail(aid):
-    article = article_lookup(aid)
-    if not article:
-        abort(404)
 
-    article["local_images"] = existing_image_candidates(article)
-    article["text_info"] = load_related_text(article)
-    article["text_preview"] = article["text_info"]["preview"] if article["text_info"] else None
-
-    beread = db1()["bereads"].find_one({"aid": aid}, {"_id": 0}) or db2()["bereads"].find_one({"aid": aid}, {"_id": 0})
-
-    return render_template("article.html", article=article, beread=beread)
-
+def replica_consistency():
+    try:
+        d1, d2 = db1(), db2()
+        sci1 = d1["articles"].count_documents({"category": "science"})
+        sci2 = d2["articles"].count_documents({"category": "science"})
+        br1  = d1["bereads"].count_documents({})
+        br2  = d2["bereads"].count_documents({})
+        pr1  = d1["popular_rank"].count_documents({})
+        pr2  = d2["popular_rank"].count_documents({})
+        # Sample hash check: compare a single science article record between nodes
+        sample1 = d1["articles"].find_one({"category": "science"}, {"_id": 0, "aid": 1, "title": 1})
+        sample2 = d2["articles"].find_one(
+            {"aid": sample1["aid"]}, {"_id": 0, "aid": 1, "title": 1}
+        ) if sample1 else None
+        record_match = (sample1 == sample2) if sample1 and sample2 else None
+        return {
+            "science_articles": {"db1": sci1, "db2": sci2, "match": sci1 == sci2},
+            "bereads":          {"db1": br1,  "db2": br2},
+            "popular_rank":     {"db1": pr1,  "db2": pr2},
+            "sample_record":    {
+                "aid":   (sample1 or {}).get("aid", "N/A"),
+                "match": record_match,
+            },
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.route("/monitor")
 def monitor():
@@ -315,7 +334,7 @@ def monitor():
         "monitor.html",
         snapshot=monitor_snapshot(),
         ranks=latest_ranks(),
-        workload=workload_summary(),
+        consistency=replica_consistency(),
     )
 
 @app.route("/assets/image/<aid>/<filename>")
@@ -323,6 +342,112 @@ def serve_image(aid, filename):
     article_dir = ROOT / "db-generation" / "articles" / f"article{aid}"
     return send_from_directory(article_dir, filename)
 
+def user_lookup(uid: str) -> dict | None:
+    return (
+        db1()["users"].find_one({"uid": uid}, {"_id": 0}) or
+        db2()["users"].find_one({"uid": uid}, {"_id": 0})
+    )
+    
+def beread_lookup(aid: str, category: str) -> dict | None:
+    if category == "science":
+        return (
+            db1()["bereads"].find_one({"aid": aid}, {"_id": 0}) or
+            db2()["bereads"].find_one({"aid": aid}, {"_id": 0})
+        )
+    return db2()["bereads"].find_one({"aid": aid}, {"_id": 0})
+
+@app.route("/users")
+def users():
+    q      = request.args.get("q", "").strip()
+    region = request.args.get("region", "").strip()
+    page   = max(int(request.args.get("page", 1)), 1)
+    per_page = 20
+
+    query = {}
+    if q:
+        query["$or"] = [
+            {"name":  {"$regex": q, "$options": "i"}},
+            {"uid":   {"$regex": q, "$options": "i"}},
+            {"email": {"$regex": q, "$options": "i"}},
+        ]
+    if region:
+        query["region"] = region
+
+    # Route to correct node; no region = merge both (up to per_page each)
+    if region == "Beijing":
+        results = list(db1()["users"].find(query, {"_id": 0})
+                       .skip((page - 1) * per_page).limit(per_page))
+        total   = db1()["users"].count_documents(query)
+    elif region == "Hong Kong":
+        results = list(db2()["users"].find(query, {"_id": 0})
+                       .skip((page - 1) * per_page).limit(per_page))
+        total   = db2()["users"].count_documents(query)
+    else:
+        half  = per_page // 2
+        skip1 = max((page - 1) * half, 0)
+        results = (
+            list(db1()["users"].find(query, {"_id": 0}).skip(skip1).limit(half)) +
+            list(db2()["users"].find(query, {"_id": 0}).skip(skip1).limit(half))
+        )
+        total = (db1()["users"].count_documents(query) +
+                 db2()["users"].count_documents(query))
+
+    pages = max(math.ceil(total / per_page), 1)
+    return render_template(
+        "users.html",
+        users=results, q=q, region=region,
+        page=page, pages=pages, total=total,
+    )
+    
+@app.route("/user/<uid>/reads")
+def user_reads(uid: str):
+    user = user_lookup(uid)
+    if not user:
+        abort(404)
+
+    # Reads are fragmented by user region — route to correct node
+    node_region = user.get("region", "Hong Kong")
+    reads_db    = db1() if node_region == "Beijing" else db2()
+    raw_reads   = list(reads_db["reads"].find({"uid": uid}, {"_id": 0}).limit(50))
+
+    # Enrich each read record with article info (the join)
+    enriched = []
+    for r in raw_reads:
+        art = article_lookup(r.get("aid", ""))
+        enriched.append({
+            **r,
+            "article_title":    (art or {}).get("title",    "Unknown"),
+            "article_category": (art or {}).get("category", "unknown"),
+            "article_authors":  (art or {}).get("authors",  ""),
+        })
+
+    return render_template(
+        "user_reads.html",
+        user=user, reads=enriched,
+        node_label="MongoDB1 (Beijing)" if node_region == "Beijing" else "MongoDB2 (Hong Kong)",
+    )
+    
+@app.route("/article/<aid>")
+def article_detail(aid: str):
+    article = article_lookup(aid)
+    if not article:
+        abort(404)
+
+    article["local_images"] = existing_image_candidates(article)
+    article["text_info"]    = load_related_text(article)
+
+    category = article.get("category", "technology")
+    beread   = beread_lookup(aid, category)
+
+    return render_template("article.html", article=article, beread=beread)
+
+
+@app.template_filter("ts_fmt")
+def ts_fmt(value, fmt="%B %d, %Y"):
+    try:
+        return datetime.fromtimestamp(int(value) / 1000, UTC).strftime(fmt)
+    except Exception:
+        return value or "—"
 
 @app.errorhandler(404)
 def not_found(e):

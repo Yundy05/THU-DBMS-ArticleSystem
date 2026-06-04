@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container users-page">
+
+    <div class="users-hero">
+      <h1>Users</h1>
+      <p>Fragmented by region — Beijing users live on <strong>MongoDB1</strong>, Hong Kong users on <strong>MongoDB2</strong>.</p>
+    </div>
+
+    {# ── Search / filter bar ── #}
+    <form class="search-bar" method="get" action="{{ url_for('users') }}">
+      <input
+        class="search-input"
+        type="text"
+        name="q"
+        value="{{ q }}"
+        placeholder="Search by name, UID, or email…"
+      >
+      <select class="search-select" name="region">
+        <option value=""     {% if not region %}selected{% endif %}>All regions</option>
+        <option value="Beijing"   {% if region == 'Beijing'   %}selected{% endif %}>Beijing (DB1)</option>
+        <option value="Hong Kong" {% if region == 'Hong Kong' %}selected{% endif %}>Hong Kong (DB2)</option>
+      </select>
+      <button class="search-btn" type="submit">Search</button>
+      {% if q or region %}
+      <a class="clear-link" href="{{ url_for('users') }}">Clear</a>
+      {% endif %}
+    </form>
+
+    <p class="result-meta">{{ total }} users found · page {{ page }} of {{ pages }}</p>
+
+    {# ── Fragment source badge ── #}
+    {% if region == 'Beijing' %}
+      <p class="frag-note db1">Querying <strong>MongoDB1</strong> (Beijing fragment)</p>
+    {% elif region == 'Hong Kong' %}
+      <p class="frag-note db2">Querying <strong>MongoDB2</strong> (Hong Kong fragment)</p>
+    {% else %}
+      <p class="frag-note both">Querying <strong>both nodes</strong> and merging results</p>
+    {% endif %}
+
+    {# ── User table ── #}
+    {% if users %}
+    <div class="table-wrap">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>UID</th>
+            <th>Name</th>
+            <th>Region</th>
+            <th>Email</th>
+            <th>Gender</th>
+            <th>Language</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td><code>{{ u.uid }}</code></td>
+            <td>{{ u.name or '—' }}</td>
+            <td>
+              <span class="region-badge {% if u.region == 'Beijing' %}beijing{% else %}hk{% endif %}">
+                {{ u.region or '—' }}
+              </span>
+            </td>
+            <td>{{ u.email or '—' }}</td>
+            <td>{{ u.gender or '—' }}</td>
+            <td>{{ u.language or '—' }}</td>
+            <td>
+              <a class="read-link" href="{{ url_for('user_reads', uid=u.uid) }}">
+                View reads →
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ── Pagination ── #}
+    {% if pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+        <a href="?q={{ q }}&region={{ region }}&page={{ page - 1 }}">← Prev</a>
+      {% endif %}
+      <span>Page {{ page }} of {{ pages }}</span>
+      {% if page < pages %}
+        <a href="?q={{ q }}&region={{ region }}&page={{ page + 1 }}">Next →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <p class="empty-note">No users found{% if q %} for "<em>{{ q }}</em>"{% endif %}.</p>
+    {% endif %}
+
+  </div>
+</section>
+
+<style>
+.users-page     { max-width: 1100px; margin: 0 auto; }
+.users-hero     { text-align: center; margin-bottom: 2rem; }
+.users-hero h1  { margin-bottom: 0.4rem; }
+.users-hero p   { color: #666; }
+
+.search-bar {
+  display: flex; flex-wrap: wrap; gap: 0.6rem;
+  margin-bottom: 1rem; align-items: center;
+}
+.search-input  { flex: 1; min-width: 200px; padding: 0.55rem 0.9rem; border: 1px solid #d4d4d8; border-radius: 10px; font-size: 0.95rem; }
+.search-select { padding: 0.55rem 0.75rem; border: 1px solid #d4d4d8; border-radius: 10px; font-size: 0.95rem; background: #fff; }
+.search-btn    { padding: 0.55rem 1.2rem; background: #4f46e5; color: #fff; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
+.search-btn:hover { background: #4338ca; }
+.clear-link    { font-size: 0.9rem; color: #888; text-decoration: none; }
+.clear-link:hover { color: #333; }
+
+.result-meta   { color: #888; font-size: 0.9rem; margin-bottom: 0.5rem; }
+
+.frag-note     { font-size: 0.88rem; padding: 0.45rem 0.9rem; border-radius: 8px; display: inline-block; margin-bottom: 1rem; }
+.frag-note.db1  { background: #eff6ff; color: #1d4ed8; }
+.frag-note.db2  { background: #f0fdf4; color: #15803d; }
+.frag-note.both { background: #faf5ff; color: #7e22ce; }
+
+.table-wrap    { overflow-x: auto; }
+.users-table   { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+.users-table th, .users-table td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid #e4e4e7; }
+.users-table th { background: #f7f7f9; font-weight: 600; color: #555; }
+.users-table tr:hover td { background: #fafafa; }
+
+.region-badge        { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+.region-badge.beijing { background: #dbeafe; color: #1e40af; }
+.region-badge.hk      { background: #dcfce7; color: #166534; }
+
+.read-link     { color: #4f46e5; text-decoration: none; font-size: 0.88rem; font-weight: 500; }
+.read-link:hover { text-decoration: underline; }
+
+.pagination    { display: flex; gap: 1rem; justify-content: center; align-items: center; margin-top: 1.5rem; }
+.pagination a  { color: #4f46e5; text-decoration: none; font-weight: 500; }
+.empty-note    { text-align: center; color: #888; margin-top: 2rem; }
+</style>
+{% endblock %}

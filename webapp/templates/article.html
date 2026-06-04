@@ -11,28 +11,105 @@ block content %}
     <p><strong>Authors:</strong> {{ article.authors }}</p>
     <p><strong>Language:</strong> {{ article.language }}</p>
     <p><strong>Keywords:</strong> {{ article.keywords }}</p>
-    <p><strong>Timestamp:</strong> {{ article.timestamp }}</p>
+    <p><strong>Timestamp:</strong> {{ article.timestamp | ts_fmt  }}</p>
 
     {% if article.local_images %}
     <img
       src="{{ url_for('serve_image', aid=article.aid, filename=article.local_images[0].name) }}"
       alt="Article image"
       class="thumb"
-    />  
+    />
     {% endif %} {% if article.text_info %}
     <h2>Related text</h2>
     <p>{{ article.text_info.preview }}</p>
     {% endif %}
 
-    <h2>Derived engagement</h2>
+    <h3>Engagement stats</h3>
     {% if beread %}
-    <p><strong>Reads:</strong> {{ beread.readNum }}</p>
-    <p><strong>Comments:</strong> {{ beread.commentNum }}</p>
-    <p><strong>Agrees:</strong> {{ beread.agreeNum }}</p>
-    <p><strong>Shares:</strong> {{ beread.shareNum }}</p>
+    <p class="beread-source">
+      Sourced from
+      <strong>
+        {% if article.category == 'science' %}MongoDB1 (science replica) {% else
+        %}MongoDB2{% endif %}
+      </strong>
+      via Be-Read table
+    </p>
+    <div class="beread-grid">
+      <div class="beread-stat">
+        <span class="beread-num">{{ beread.readNum | default(0) }}</span>
+        <span class="beread-label">Reads</span>
+      </div>
+      <div class="beread-stat">
+        <span class="beread-num">{{ beread.commentNum | default(0) }}</span>
+        <span class="beread-label">Comments</span>
+      </div>
+      <div class="beread-stat">
+        <span class="beread-num">{{ beread.agreeNum | default(0) }}</span>
+        <span class="beread-label">Agrees</span>
+      </div>
+      <div class="beread-stat">
+        <span class="beread-num">{{ beread.shareNum | default(0) }}</span>
+        <span class="beread-label">Shares</span>
+      </div>
+    </div>
     {% else %}
-    <p>No Be-Read row found yet.</p>
+    <p class="beread-empty">
+      No engagement data yet — run
+      <code>python scripts/derive_beread.py</code> to populate.
+    </p>
     {% endif %}
   </div>
 </section>
 {% endblock %}
+
+<style>
+  .beread-section {
+    margin-top: 2rem;
+    padding: 1.25rem 1.4rem;
+    background: #fff;
+    border: 1px solid #e4e4e7;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  }
+  .beread-section h3 {
+    margin-bottom: 0.4rem;
+  }
+  .beread-source {
+    font-size: 0.83rem;
+    color: #888;
+    margin-bottom: 1rem;
+  }
+  .beread-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+  }
+  .beread-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.9rem 0.5rem;
+    background: #f7f7f9;
+    border-radius: 12px;
+  }
+  .beread-num {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #4f46e5;
+    line-height: 1;
+  }
+  .beread-label {
+    font-size: 0.8rem;
+    color: #777;
+    margin-top: 0.3rem;
+  }
+  .beread-empty {
+    color: #888;
+    font-size: 0.9rem;
+  }
+  @media (max-width: 500px) {
+    .beread-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>

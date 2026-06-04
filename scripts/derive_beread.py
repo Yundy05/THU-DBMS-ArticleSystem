@@ -22,7 +22,13 @@ def derive_beread():
 
     # Aggregate reads per article
     aggregated = {}
+    seen = set()
     for read in all_reads:
+        key = (read.get("uid"), read.get("aid"), read.get("timestamp"))
+        if key in seen:
+            continue
+        
+        seen.add(key)
         aid = read["aid"]
         if aid not in aggregated:
             aggregated[aid] = {

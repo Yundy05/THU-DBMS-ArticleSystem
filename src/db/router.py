@@ -63,3 +63,23 @@ def route_popular_rank(granularity: str):
         return [get_mongo1()["popular_rank"]]
     else:
         return [get_mongo2()["popular_rank"]]
+
+def read_article(aid: str) -> dict | None:
+    """Read-side routing: check DB2 first (has all), fall back to DB1."""
+    return get_mongo2()["articles"].find_one({"aid": aid}, {"_id": 0}) or \
+           get_mongo1()["articles"].find_one({"aid": aid}, {"_id": 0})
+
+def read_user(uid: str) -> dict | None:
+    """Try both nodes — don't assume region without a lookup."""
+    return get_mongo1()["users"].find_one({"uid": uid}, {"_id": 0}) or \
+           get_mongo2()["users"].find_one({"uid": uid}, {"_id": 0})
+
+def read_beread(aid: str, category: str) -> dict | None:
+    if category == "science":
+        return get_mongo1()["bereads"].find_one({"aid": aid}, {"_id": 0}) or \
+               get_mongo2()["bereads"].find_one({"aid": aid}, {"_id": 0})
+    return get_mongo2()["bereads"].find_one({"aid": aid}, {"_id": 0})
+
+def read_popular_rank(granularity: str) -> dict | None:
+    col = get_mongo1() if granularity == "daily" else get_mongo2()
+    return col["popular_rank"].find_one({"temporalGranularity": granularity}, {"_id": 0})

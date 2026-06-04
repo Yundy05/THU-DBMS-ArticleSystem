@@ -34,13 +34,11 @@ def derive_popular_rank():
         if ts >= now - timedelta(days=30):
             buckets["monthly"][aid] += 1
 
-    for granularity, counts in buckets.items():
-        if not counts:
-            counts = defaultdict(int)
-            for read in all_reads:
-                counts[read["aid"]] += 1
+    FALLBACK = {r["aid"]: 1 for r in all_reads}  # precompute once outside the loop
 
-        top5 = sorted(counts.items(), key=lambda x: -x[1])[:5]
+    for granularity, counts in buckets.items():
+        effective_counts = counts if counts else FALLBACK
+        top5 = sorted(effective_counts.items(), key=lambda x: -x[1])[:5]
         record = {
             "timestamp": now.isoformat(),
             "temporalGranularity": granularity,

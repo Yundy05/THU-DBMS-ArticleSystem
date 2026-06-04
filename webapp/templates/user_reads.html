@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% block title %}Reads — {{ user.name or user.uid }}{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="container ur-page">
+
+    {# ── User profile header ── #}
+    <div class="ur-hero">
+      <a class="back-link" href="{{ url_for('users') }}">← All users</a>
+      <h1>{{ user.name or ('User ' ~ user.uid) }}</h1>
+      <p class="ur-meta">
+        UID&nbsp;<code>{{ user.uid }}</code> ·
+        <span class="region-badge {% if user.region == 'Beijing' %}beijing{% else %}hk{% endif %}">
+          {{ user.region or 'Unknown' }}
+        </span>
+        · Read records sourced from <strong>{{ node_label }}</strong>
+      </p>
+    </div>
+
+    {# ── User details card ── #}
+    <div class="user-detail-card">
+      <div class="detail-grid">
+        <div class="detail-item"><span class="detail-label">Email</span><span>{{ user.email or '—' }}</span></div>
+        <div class="detail-item"><span class="detail-label">Gender</span><span>{{ user.gender or '—' }}</span></div>
+        <div class="detail-item"><span class="detail-label">Language</span><span>{{ user.language or '—' }}</span></div>
+        <div class="detail-item"><span class="detail-label">Dept</span><span>{{ user.dept or '—' }}</span></div>
+        <div class="detail-item"><span class="detail-label">Grade</span><span>{{ user.grade or '—' }}</span></div>
+        <div class="detail-item"><span class="detail-label">Role</span><span>{{ user.role or '—' }}</span></div>
+      </div>
+    </div>
+
+    {# ── Distributed join explanation ── #}
+    <div class="join-note">
+      <span class="join-icon">🔗</span>
+      <p>
+        <strong>Distributed join:</strong> User record fetched from
+        <strong>{{ node_label }}</strong> (fragmented by region).
+        Each read record is then enriched with article metadata
+        fetched from <strong>MongoDB2</strong> (all articles) —
+        simulating a cross-node <code>User ⋈ Read ⋈ Article</code> join.
+      </p>
+    </div>
+
+    {# ── Read history table ── #}
+    <h2 class="reads-title">Read history <span class="count-badge">{{ reads | length }}</span></h2>
+
+    {% if reads %}
+    <div class="table-wrap">
+      <table class="reads-table">
+        <thead>
+          <tr>
+            <th>AID</th>
+            <th>Article</th>
+            <th>Category</th>
+            <th>Authors</th>
+            <th>Agreed</th>
+            <th>Commented</th>
+            <th>Shared</th>
+            <th>Read time</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in reads %}
+          <tr>
+            <td><code>{{ r.aid }}</code></td>
+            <td class="article-cell">{{ r.article_title }}</td>
+            <td>
+              <span class="cat-badge {{ r.article_category }}">{{ r.article_category | title }}</span>
+            </td>
+            <td class="authors-cell">{{ r.article_authors or '—' }}</td>
+            <td class="flag-cell {% if r.agreeOrNot == '1' %}yes{% endif %}">
+              {{ '✅' if r.agreeOrNot == '1' else '—' }}
+            </td>
+            <td class="flag-cell {% if r.commentOrNot == '1' %}yes{% endif %}">
+              {{ '✅' if r.commentOrNot == '1' else '—' }}
+            </td>
+            <td class="flag-cell {% if r.shareOrNot == '1' %}yes{% endif %}">
+              {{ '✅' if r.shareOrNot == '1' else '—' }}
+            </td>
+            <td class="ts-cell">
+              {% if r.readTimeLength %}
+                {{ r.readTimeLength }}s
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              <a class="art-link" href="{{ url_for('article_detail', aid=r.aid) }}">Open →</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty-note">No read records found for this user.</p>
+    {% endif %}
+
+  </div>
+</section>
+
+<style>
+.ur-page       { max-width: 1100px; margin: 0 auto; }
+.ur-hero       { margin-bottom: 1.5rem; }
+.back-link     { display: inline-block; margin-bottom: 0.6rem; color: #4f46e5; text-decoration: none; font-size: 0.9rem; }
+.back-link:hover { text-decoration: underline; }
+.ur-hero h1    { margin-bottom: 0.4rem; }
+.ur-meta       { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-size: 0.92rem; color: #555; }
+
+.region-badge         { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+.region-badge.beijing { background: #dbeafe; color: #1e40af; }
+.region-badge.hk      { background: #dcfce7; color: #166534; }
+
+.user-detail-card {
+  background: #fff; border: 1px solid #e4e4e7;
+  border-radius: 16px; padding: 1.2rem 1.4rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+}
+.detail-grid   { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.8rem; }
+.detail-item   { display: flex; flex-direction: column; gap: 0.2rem; }
+.detail-label  { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #888; }
+
+.join-note {
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  background: #f5f3ff; border: 1px solid #ddd6fe;
+  border-radius: 12px; padding: 0.9rem 1.1rem;
+  margin-bottom: 1.5rem; font-size: 0.9rem; color: #5b21b6;
+}
+.join-icon { font-size: 1.2rem; flex-shrink: 0; line-height: 1.4; }
+.join-note p { margin: 0; max-width: none; }
+
+.reads-title   { margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.6rem; }
+.count-badge   { padding: 0.2rem 0.6rem; background: #e0e7ff; color: #4f46e5; border-radius: 999px; font-size: 0.85rem; font-weight: 600; }
+
+.table-wrap    { overflow-x: auto; }
+.reads-table   { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.reads-table th, .reads-table td { padding: 0.65rem 0.8rem; text-align: left; border-bottom: 1px solid #e4e4e7; }
+.reads-table th { background: #f7f7f9; font-weight: 600; color: #555; white-space: nowrap; }
+.reads-table tr:hover td { background: #fafafa; }
+
+.article-cell  { max-width: 240px; }
+.authors-cell  { max-width: 160px; color: #666; font-size: 0.85rem; }
+.ts-cell       { white-space: nowrap; color: #888; }
+.flag-cell     { text-align: center; color: #ccc; }
+.flag-cell.yes { color: #16a34a; }
+
+.cat-badge           { padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
+.cat-badge.science   { background: #dbeafe; color: #1e40af; }
+.cat-badge.technology{ background: #dcfce7; color: #166534; }
+
+.art-link      { color: #4f46e5; text-decoration: none; font-size: 0.85rem; font-weight: 500; white-space: nowrap; }
+.art-link:hover{ text-decoration: underline; }
+.empty-note    { text-align: center; color: #888; margin-top: 2rem; }
+</style>
+{% endblock %}
