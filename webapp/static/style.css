@@ -305,6 +305,97 @@ nav {
   margin-left: 0.4rem;
 }
 
+  /* ── page layout ── */
+  .qd-wrap       { max-width: 900px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+  .qd-hero       { margin-bottom: 2.5rem; }
+  .qd-hero h1    { font-size: 1.75rem; font-weight: 700; margin: 0 0 .35rem; }
+  .qd-hero p     { color: #6b7280; margin: 0; font-size: .95rem; }
+
+  /* ── node status bar ── */
+  .node-bar            { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+  .node-pill           { display: flex; align-items: center; gap: .5rem; padding: .55rem 1rem;
+                         border-radius: 99px; font-size: .82rem; font-weight: 600;
+                         border: 1.5px solid transparent; transition: all .3s; }
+  .node-pill.online    { background: #f0fdf4; border-color: #86efac; color: #15803d; }
+  .node-pill.standby   { background: #fefce8; border-color: #fde047; color: #854d0e; }
+  .node-pill.offline   { background: #fef2f2; border-color: #fca5a5; color: #b91c1c; }
+  .node-dot            { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .online  .node-dot   { background: #22c55e; box-shadow: 0 0 0 3px #bbf7d0; }
+  .standby .node-dot   { background: #eab308; box-shadow: 0 0 0 3px #fef08a; }
+  .offline .node-dot   { background: #ef4444; animation: pulse-dot 1.2s infinite;
+                         box-shadow: 0 0 0 3px #fecaca; }
+  @keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+
+  /* ── failover banner ── */
+  .failover-banner { display: flex; align-items: flex-start; gap: 1rem;
+                     background: #fff7ed; border: 1.5px solid #fb923c;
+                     border-left: 5px solid #ea580c;
+                     border-radius: 10px; padding: 1rem 1.25rem;
+                     margin-bottom: 2rem; animation: slide-in .4s ease; }
+  .failover-banner .fb-icon { font-size: 1.5rem; line-height: 1; margin-top: .1rem; }
+  .failover-banner h3 { margin: 0 0 .2rem; font-size: 1rem; font-weight: 700; color: #c2410c; }
+  .failover-banner p  { margin: 0; font-size: .875rem; color: #7c2d12; line-height: 1.5; }
+  .ok-banner      { display: flex; align-items: center; gap: .75rem;
+                    background: #f0fdf4; border: 1.5px solid #86efac;
+                    border-radius: 10px; padding: .85rem 1.25rem;
+                    margin-bottom: 2rem; font-size: .875rem; color: #15803d; font-weight: 500; }
+  @keyframes slide-in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+
+  /* ── routing map ── */
+  .routing-map        { background: #f9fafb; border: 1px solid #e5e7eb;
+                        border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 2.5rem; }
+  .routing-map h2     { font-size: .8rem; font-weight: 700; text-transform: uppercase;
+                        letter-spacing: .08em; color: #9ca3af; margin: 0 0 1rem; }
+  .routing-table      { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  .routing-table th   { text-align: left; color: #6b7280; font-weight: 600;
+                        padding: .3rem .75rem; border-bottom: 1px solid #e5e7eb; }
+  .routing-table td   { padding: .45rem .75rem; color: #374151; }
+  .routing-table tr:last-child td { border: none; }
+
+  /* ── query cards ── */
+  .qcard             { border: 1px solid #e5e7eb; border-radius: 12px;
+                       overflow: hidden; margin-bottom: 1.5rem; }
+  .qcard-head        { display: flex; justify-content: space-between; align-items: center;
+                       padding: .85rem 1.25rem; background: #f9fafb;
+                       border-bottom: 1px solid #e5e7eb; gap: 1rem; }
+  .qcard-head-left   { display: flex; align-items: center; gap: .6rem; }
+  .q-num             { font-size: .72rem; font-weight: 700; background: #e5e7eb;
+                       color: #374151; border-radius: 5px; padding: .15rem .45rem; }
+  .qcard-head strong { font-size: .92rem; color: #111827; }
+  .qcard-body        { padding: 0; }
+  .qcard-note        { padding: .6rem 1.25rem; background: #fff;
+                       font-size: .8rem; color: #6b7280; border-bottom: 1px solid #f3f4f6; }
+  .qcard-note code   { background: #f3f4f6; border-radius: 4px;
+                       padding: .1rem .35rem; font-size: .78rem; }
+
+  /* ── node badges ── */
+  .nbadge            { font-size: .75rem; font-weight: 600; padding: .25rem .7rem;
+                       border-radius: 99px; white-space: nowrap; }
+  .nbadge.db1        { background: #dbeafe; color: #1d4ed8; }
+  .nbadge.db2        { background: #f3f4f6; color: #374151; }
+  .nbadge.db3        { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+  .nbadge.join       { background: #faf5ff; color: #7e22ce; border: 1px solid #d8b4fe; }
+
+  /* ── data tables ── */
+  .qtable            { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  .qtable th         { background: #f9fafb; color: #6b7280; font-weight: 600; font-size: .78rem;
+                       text-transform: uppercase; letter-spacing: .05em;
+                       padding: .6rem 1.25rem; text-align: left;
+                       border-bottom: 1px solid #e5e7eb; }
+  .qtable td         { padding: .6rem 1.25rem; color: #374151;
+                       border-bottom: 1px solid #f3f4f6; }
+  .qtable tr:last-child td { border: none; }
+  .qtable tr:hover td      { background: #f9fafb; }
+  .empty-row td      { color: #9ca3af; font-style: italic; }
+
+  /* ── two-col grid ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+  @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── auto-refresh note ── */
+  .refresh-hint { font-size: .78rem; color: #9ca3af; text-align: right;
+                  margin-bottom: 1rem; margin-top: -.5rem; }
+
 @media (max-width:900px) {
 
   .hero-grid,
@@ -336,4 +427,5 @@ nav {
     background: #ecfdf3;
     color: #157347;
   }
+
 }

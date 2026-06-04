@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Query Demo{% endblock %}
+{% block content %}
+
+<div class="qd-wrap">
+...
+
+  <!-- Hero -->
+  <div class="qd-hero">
+    <h1>Live Query Demo</h1>
+    <p>Each query runs live against the distributed MongoDB nodes on every page load.</p>
+  </div>
+
+  <!-- Node status bar (auto-refreshes every 5s via JS) -->
+  <div class="node-bar" id="node-bar">
+    {% set statuses = {"MongoDB1": "online", "MongoDB2": "online", "MongoDB3": "standby"} %}
+    {% if failover %}
+      {% set statuses = {"MongoDB1": "offline", "MongoDB2": "online", "MongoDB3": "standby"} %}
+    {% endif %}
+    {% for name, status in [("MongoDB1", "offline" if failover else "online"),
+                             ("MongoDB2", "online"),
+                             ("MongoDB3", "standby")] %}
+    <div class="node-pill {{ status }}">
+      <span class="node-dot"></span>
+      {{ name }}{% if name == "MongoDB3" %} (hot standby){% endif %}
+      &nbsp;·&nbsp;{{ status }}
+    </div>
+    {% endfor %}
+  </div>
+  <p class="refresh-hint" id="refresh-timer">Refreshing node status in <span id="countdown">5</span>s</p>
+
+  <!-- Failover / OK banner -->
+  {% if failover %}
+  <div class="failover-banner">
+    <div class="fb-icon">⚡</div>
+    <div>
+      <h3>Hot-Standby Failover Active</h3>
+      <p>
+        <strong>MongoDB1 is offline.</strong> All Beijing-region queries and daily popular rank
+        are being served by <strong>MongoDB3</strong> (hot standby). No data loss.
+        Queries continue transparently.
+      </p>
+    </div>
+  </div>
+  {% else %}
+  <div class="ok-banner">
+    <span>✅</span>
+    All nodes healthy — queries routed normally across MongoDB1, MongoDB2, and MongoDB3.
+  </div>
+  {% endif %}
+
+  <!-- Routing map -->
+  <div class="routing-map">
+    <h2>Query Routing Map</h2>
+    <table class="routing-table">
+      <thead>
+        <tr><th>#</th><th>Query</th><th>Node</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td><td>Beijing users</td>
+          <td><span class="nbadge {{ 'db3' if failover else 'db1' }}">{{ db1_node }}</span></td>
+        </tr>
+        <tr>
+          <td>2</td><td>Hong Kong users</td>
+          <td><span class="nbadge db2">MongoDB2</span></td>
+        </tr>
+        <tr>
+          <td>3</td><td>Science articles</td>
+          <td><span class="nbadge db2">MongoDB2</span></td>
+        </tr>
+        <tr>
+          <td>4</td><td>Technology articles</td>
+          <td><span class="nbadge db2">MongoDB2</span></td>
+        </tr>
+        <tr>
+          <td>5</td><td>User reads — distributed join (uid=0)</td>
+          <td>
+            <span class="nbadge join">
+              {{ db1_node }} ⋈ MongoDB2
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td>6</td><td>Daily popular rank</td>
+          <td><span class="nbadge {{ 'db3' if failover else 'db1' }}">{{ db1_node }}</span></td>
+        </tr>
+        <tr>
+          <td>6</td><td>Weekly / Monthly popular rank</td>
+          <td><span class="nbadge db2">MongoDB2</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Q1: Beijing users -->
+  <div class="qcard">
+    <div class="qcard-head">
+      <div class="qcard-head-left">
+        <span class="q-num">Q1</span>
+        <strong>Users — region: Beijing</strong>
+      </div>
+      <span class="nbadge {{ 'db3' if failover else 'db1' }}">{{ db1_node }}</span>
+    </div>
+    <div class="qcard-body">
+      <table class="qtable">
+        <thead><tr><th>UID</th><th>Name</th><th>Region</th><th>Language</th></tr></thead>
+        <tbody>
+          {% for u in users_beijing %}
+          <tr><td>{{ u.uid }}</td><td>{{ u.name }}</td><td>{{ u.region }}</td><td>{{ u.language }}</td></tr>
+          {% else %}<tr class="empty-row"><td colspan="4">No results</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Q2: HK users -->
+  <div class="qcard">
+    <div class="qcard-head">
+      <div class="qcard-head-left">
+        <span class="q-num">Q2</span>
+        <strong>Users — region: Hong Kong</strong>
+      </div>
+      <span class="nbadge db2">MongoDB2</span>
+    </div>
+    <div class="qcard-body">
+      <table class="qtable">
+        <thead><tr><th>UID</th><th>Name</th><th>Region</th><th>Language</th></tr></thead>
+        <tbody>
+          {% for u in users_hk %}
+          <tr><td>{{ u.uid }}</td><td>{{ u.name }}</td><td>{{ u.region }}</td><td>{{ u.get('language','') }}</td></tr>
+          {% else %}<tr class="empty-row"><td colspan="4">No results</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Q3 & Q4: Articles side by side -->
+  <div class="two-col">
+    <div class="qcard" style="margin-bottom:0">
+      <div class="qcard-head">
+        <div class="qcard-head-left">
+          <span class="q-num">Q3</span>
+          <strong>Science Articles</strong>
+        </div>
+        <span class="nbadge db2">MongoDB2</span>
+      </div>
+      <table class="qtable">
+        <thead><tr><th>AID</th><th>Title</th></tr></thead>
+        <tbody>
+          {% for a in articles_sci %}
+          <tr><td>{{ a.aid }}</td><td>{{ a.title[:42] }}</td></tr>
+          {% else %}<tr class="empty-row"><td colspan="2">No results</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="qcard" style="margin-bottom:0">
+      <div class="qcard-head">
+        <div class="qcard-head-left">
+          <span class="q-num">Q4</span>
+          <strong>Technology Articles</strong>
+        </div>
+        <span class="nbadge db2">MongoDB2</span>
+      </div>
+      <table class="qtable">
+        <thead><tr><th>AID</th><th>Title</th></tr></thead>
+        <tbody>
+          {% for a in articles_tech %}
+          <tr><td>{{ a.aid }}</td><td>{{ a.title[:42] }}</td></tr>
+          {% else %}<tr class="empty-row"><td colspan="2">No results</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Q5: Distributed join -->
+  <div class="qcard">
+    <div class="qcard-head">
+      <div class="qcard-head-left">
+        <span class="q-num">Q5</span>
+        <strong>Distributed Join — User ⋈ Reads ⋈ Articles</strong>
+      </div>
+      <span class="nbadge join">{{ reads_node }} ⋈ MongoDB2</span>
+    </div>
+    {% if user %}
+    <div class="qcard-note">
+      User <code>{{ user.get('name','?') }}</code> ({{ user.get('region','?') }}) —
+      reads from <strong>{{ reads_node }}</strong>, articles joined from <strong>MongoDB2</strong>
+    </div>
+    {% endif %}
+    <table class="qtable">
+      <thead>
+        <tr><th>AID</th><th>Title</th><th>Category</th><th>Agree</th><th>Comment</th><th>Share</th></tr>
+      </thead>
+      <tbody>
+        {% for r in reads_enriched %}
+        <tr>
+          <td>{{ r.aid }}</td><td>{{ r.title[:35] }}</td><td>{{ r.category }}</td>
+          <td>{{ r.agreeOrNot }}</td><td>{{ r.commentOrNot }}</td><td>{{ r.shareOrNot }}</td>
+        </tr>
+        {% else %}<tr class="empty-row"><td colspan="6">No reads found for uid=0</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Q6: Popular rank (3 cards) -->
+  {% for gran, data in ranks.items() %}
+  <div class="qcard">
+    <div class="qcard-head">
+      <div class="qcard-head-left">
+        <span class="q-num">Q6</span>
+        <strong>Top-5 Popular Articles — {{ gran | capitalize }}</strong>
+      </div>
+      <span class="nbadge {{ 'db3' if (gran == 'daily' and failover) else ('db1' if gran == 'daily' else 'db2') }}">
+        {{ data.node }}
+      </span>
+    </div>
+    <table class="qtable">
+      <thead><tr><th>#</th><th>AID</th><th>Title</th><th>Category</th></tr></thead>
+      <tbody>
+        {% for i, r in data.rows | enumerate %}
+        <tr>
+          <td>{{ i + 1 }}</td>
+          <td>{{ r.aid }}</td>
+          <td>{{ r.title[:50] }}</td>
+          <td>{{ r.category }}</td>
+        </tr>
+        {% else %}<tr class="empty-row"><td colspan="4">No data — run derive_popular_rank.py</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+
+</div>
+
+<script>
+  // Auto-refresh every 5s to reflect live node status changes (e.g. DB1 going down)
+  let countdown = 5;
+  const el = document.getElementById("countdown");
+  setInterval(() => {
+    countdown--;
+    if (el) el.textContent = countdown;
+    if (countdown <= 0) {
+      window.location.reload();
+    }
+  }, 1000);
+</script>
+
+{% endblock %}
