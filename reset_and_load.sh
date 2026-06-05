@@ -1,8 +1,8 @@
 set -e
 
 echo "Resetting containers and volumes..."
-docker compose down -v
-docker compose up -d
+docker compose --profile expansion down -v
+docker compose --profile expansion up -d
 
 echo "Waiting for mongo1..."
 until docker exec mongo1 mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" >/dev/null 2>&1; do
@@ -18,6 +18,20 @@ echo "Waiting for mongo3..."
 until docker exec mongo3 mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" >/dev/null 2>&1; do
   sleep 2
 done
+
+# MongoDB4 is optional — wait only if the container is running
+if docker ps --format '{{.Names}}' | grep -q '^mongo4$'; then
+  echo "Waiting for mongo4 (expansion node)..."
+  until docker exec mongo4 mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" >/dev/null 2>&1; do
+    sleep 2
+  done
+  echo "mongo4 is ready."
+else
+  echo "mongo4 not running — skipping (expansion node is optional)."
+fi
+
+echo "MongoDB containers are ready."
+
 
 echo "Installing dependencies..."
 pip install -r requirements.txt
@@ -36,13 +50,21 @@ python scripts/load_reads.py
 
 echo "Reset and base load complete."
 
-echo "Loading bereads..."
+echo "Deriving bereads..."
 python scripts/derive_beread.py
 
-echo "Loading popular rankings..."
+echo "Deriving popular rankings..."
 python scripts/derive_popular_rank.py
 
 echo "Syncing DB1 → DB3 (hot standby)..."
 python scripts/sync_standby.py --full
+
+# Migrate to MongoDB4 only if the container is running
+if docker ps --format '{{.Names}}' | grep -q '^mongo4$'; then
+  echo "Migrating data to MongoDB4 (expansion node)..."
+  python scripts/migrate_to_mongo4.py
+else
+  echo "Skipping MongoDB4 migration — container not running."
+fi
 
 echo "Reset and load complete."

@@ -12,7 +12,7 @@ import os
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 try:
-    from src.db.connections import get_mongo1, get_mongo2, get_mongo3, node_status
+    from src.db.connections import get_mongo1, get_mongo2, get_mongo3, get_mongo4,node_status
     
 except Exception as e:
     raise RuntimeError(
@@ -34,6 +34,9 @@ def db2():
 
 def db3():
     return get_mongo3()
+
+def db4():
+    return get_mongo4()
 
 def parse_csv(value):
     if not value:
@@ -87,7 +90,6 @@ def category_text_dirs(category):
     }
     return mapping.get(str(category or "").lower(), [str(category or "").lower()])
 
-
 def article_text_candidates(article):
     aid_digits = normalize_digits(article.get("aid"))
     candidates = []
@@ -137,11 +139,51 @@ def _db3_collections():
         }
     except Exception:
         return {}
-    
+
+def _db4_collections():
+    try:
+        mongo4 = db4()
+        return {
+            "users": safe_count(mongo4["users"]),
+            "articles": safe_count(mongo4["articles"]),
+            "reads": safe_count(mongo4["reads"]),
+            "bereads": safe_count(mongo4["bereads"]),
+            "popular_rank": safe_count(mongo4["popular_rank"]),
+        }
+    except Exception:
+        # If MONGO4_URI is not configured or node is down, treat as empty.
+        return {}
+
+EXPECTED_COUNTS = {
+    "users": 10000,
+    "articles": 10000,
+    "reads": 1000000,
+}
+
+def load_status():
+    d1, d2 = db1_or_standby(), db2()
+    return {
+        "users": {
+            "expected": EXPECTED_COUNTS["users"],
+            "db1": d1["users"].count_documents({}),
+            "db2": d2["users"].count_documents({}),
+        },
+        "articles": {
+            "expected": EXPECTED_COUNTS["articles"],
+            "db1": d1["articles"].count_documents({}),
+            "db2": d2["articles"].count_documents({}),
+        },
+        "reads": {
+            "expected": EXPECTED_COUNTS["reads"],
+            "db1": d1["reads"].count_documents({}),
+            "db2": d2["reads"].count_documents({}),
+        },
+    }
 
 def monitor_snapshot():
     mongo1 = db1_or_standby()
     mongo2 = db2()
+    mongo4 = db4()
     statuses = node_status()   # live ping: "online" / "standby" / "offline"
     return [
         {
@@ -204,6 +246,18 @@ def monitor_snapshot():
             "location_note": "Hot standby for MongoDB1. Automatically takes over if DB1 goes offline. Mirrors: Beijing users, science articles, Beijing reads, science Be-Read, daily popular rank.",
             "collections": _db3_collections() if statuses.get("MongoDB3") != "offline" else {},
             "managed_data": {},
+        },
+        {
+            "label": "MongoDB4 (Expansion node)",
+            "status": statuses.get("MongoDB4", "offline"),
+            "location_note": (
+                "Reserved for future expansion. Can host new regions or "
+                "categories when the data center scales out."
+            ),
+            "collections": _db4_collections()
+            if statuses.get("MongoDB4") != "offline"
+            else {},
+            "managed_data": {},  # not assigned any shard yet
         },
     ]
 
@@ -380,6 +434,7 @@ def monitor():
         ranks=latest_ranks(),
         consistency=replica_consistency(),
         workload=workload_summary(),
+        load_status=load_status(),
     )
 
 @app.route("/assets/image/<aid>/<filename>")
@@ -693,7 +748,7 @@ def record_read(aid: str):
     result = insert_read(uid, aid, agree, comment, comment_text, share)
     return jsonify(result)
 
-
+        
 @app.errorhandler(404)
 def not_found(e):
     return "<h1>404 - Page not found</h1>", 404

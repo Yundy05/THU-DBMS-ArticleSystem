@@ -11,7 +11,7 @@ if [ -z "$USER_ID" ] || [ -z "$ART_ID" ]; then
   exit 1
 fi
 
-DB_NAME="${DB_NAME:-appdb}"          # change if your DB_NAME is different
+DB_NAME="${DB_NAME:-distrib_db}"          
 BASE_URL="${BASE_URL:-http://127.0.0.1:5001}"
 
 echo "=== Step 1: Trigger Record Read via Flask endpoint ==="
@@ -31,7 +31,7 @@ echo
 
 echo "=== Step 2: Inspect reads in DB1 and DB3 (Beijing fragment) ==="
 echo "--- mongo1 (if running) ---"
-docker exec -it mongo1 mongosh --eval "
+docker exec -i mongo1 mongosh --eval "
   const db = db.getSiblingDB('$DB_NAME');
   print('reads on mongo1 for uid=$USER_ID, aid=$ART_ID:');
   db.reads.find({ uid: '$USER_ID', aid: '$ART_ID' })

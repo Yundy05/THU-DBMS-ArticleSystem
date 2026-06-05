@@ -1,5 +1,6 @@
-{% extends 'base.html' %} {% block title %}Monitor{% endblock %} {% block
-content %}
+{% extends 'base.html' %} 
+{% block title %}Monitor{% endblock %}
+{% block content %}
 <section class="section">
   <div class="container monitor-page">
     <div class="monitor-hero">
@@ -16,15 +17,23 @@ content %}
       <article class="monitor-card">
         <div class="card-header">
           <h3>{{ node.label }}</h3>
-          <span class="status-badge">{{ node.status }}
-              {% if node.status == 'online' %}🟢 
-              {% elif node.status == 'standby' %}🟡 
-              {% else %}🔴 
-              {% endif %}
+          <span class="status-badge">
+            {{ node.status }}
+            {% if node.status == 'online' %}🟢
+            {% elif node.status == 'standby' %}🟡
+            {% else %}🔴
+            {% endif %}
           </span>
         </div>
 
         <p class="muted centered">{{ node.location_note }}</p>
+
+        {# Extra legend for the expansion node #}
+        {% if node.label.startswith('MongoDB4') %}
+        <p class="muted centered" style="font-size:0.85rem; margin-top:0.25rem;">
+          Expansion / cold-standby node — used as a migration target for users and articles.
+        </p>
+        {% endif %}
 
         <div class="info-block">
           <h4>Collections</h4>
@@ -44,54 +53,54 @@ content %}
           {% endif %}
         </div>
 
-      {% if node.managed_data %}
-      <div class="info-block">
-        <h4>Managed data</h4>
+        {% if node.managed_data %}
+        <div class="info-block">
+          <h4>Managed data</h4>
 
-        {% if node.managed_data.regions %}
-        <p class="mini-title">Users by region</p>
-        <div class="stat-list">
-          {% for name, count in node.managed_data.regions.items() %}
-          <div class="stat-row">
-            <span>{{ name }}</span>
-            <strong>{{ count }}</strong>
+          {% if node.managed_data.regions %}
+          <p class="mini-title">Users by region</p>
+          <div class="stat-list">
+            {% for name, count in node.managed_data.regions.items() %}
+            <div class="stat-row">
+              <span>{{ name }}</span>
+              <strong>{{ count }}</strong>
+            </div>
+            {% endfor %}
           </div>
-          {% endfor %}
+          {% endif %}
+
+          {% if node.managed_data.article_categories %}
+          <p class="mini-title">Articles by category</p>
+          <div class="stat-list">
+            {% for name, count in node.managed_data.article_categories.items() %}
+            <div class="stat-row">
+              <span>{{ name|title }}</span>
+              <strong>{{ count }}</strong>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {% if node.managed_data.popular_rank_granularity %}
+          <p class="mini-title">Popular rank granularity</p>
+          <div class="stat-list">
+            {% for name, count in node.managed_data.popular_rank_granularity.items() %}
+            <div class="stat-row">
+              <span>{{ name|title }}</span>
+              <strong>{{ count }}</strong>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="info-block standby-note">
+          <h4>Managed data</h4>
+          <p class="muted" style="font-size:0.85rem; margin-top:0.4rem;">
+            🔁 Hot standby — mirrors MongoDB1. See DB1 for managed data breakdown.
+          </p>
         </div>
         {% endif %}
-
-        {% if node.managed_data.article_categories %}
-        <p class="mini-title">Articles by category</p>
-        <div class="stat-list">
-          {% for name, count in node.managed_data.article_categories.items() %}
-          <div class="stat-row">
-            <span>{{ name|title }}</span>
-            <strong>{{ count }}</strong>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-
-        {% if node.managed_data.popular_rank_granularity %}
-        <p class="mini-title">Popular rank granularity</p>
-        <div class="stat-list">
-          {% for name, count in node.managed_data.popular_rank_granularity.items() %}
-          <div class="stat-row">
-            <span>{{ name|title }}</span>
-            <strong>{{ count }}</strong>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      {% else %}
-      <div class="info-block standby-note">
-        <h4>Managed data</h4>
-        <p class="muted" style="font-size:0.85rem; margin-top:0.4rem;">
-          🔁 Hot standby — mirrors MongoDB1. See DB1 for managed data breakdown.
-        </p>
-      </div>
-      {% endif %}
       </article>
       {% endfor %}
     </div>
@@ -107,12 +116,10 @@ content %}
             <span>Read records</span><strong>{{ info.read_records }}</strong>
           </div>
           <div class="stat-row">
-            <span>Be-Read records</span
-            ><strong>{{ info.beread_records }}</strong>
+            <span>Be-Read records</span><strong>{{ info.beread_records }}</strong>
           </div>
           <div class="stat-row">
-            <span>Article records</span
-            ><strong>{{ info.article_records }}</strong>
+            <span>Article records</span><strong>{{ info.article_records }}</strong>
           </div>
           <div class="stat-row">
             <span>User records</span><strong>{{ info.user_records }}</strong>
@@ -121,15 +128,63 @@ content %}
       </article>
       {% endfor %}
     </div>
-    {% endif %} {# ── REPLICA CONSISTENCY SECTION ── #} {% if consistency is
-    defined %}
+    {% endif %}
+
+    {% if load_status %}
+    <h2 class="section-title">Data loading status</h2>
+
+    <div class="monitor-card">
+      <div class="monitor-card-header">
+        <h3>Bulk load & partitioning</h3>
+        <p class="muted">
+          Expected vs actual records per node (shows bulk load and fragmentation).
+        </p>
+      </div>
+
+      <div class="stat-list">
+        {% for name, info in load_status.items() %}
+        <div class="stat-row">
+          <div class="stat-label">
+            {% if name == "users" %}
+              Users
+            {% elif name == "articles" %}
+              Articles
+            {% elif name == "reads" %}
+              Reads
+            {% else %}
+              {{ name|title }}
+            {% endif %}
+          </div>
+          <div class="stat-value">
+            <span class="pill pill-muted">
+              Expected: {{ info.expected }}
+            </span>
+            <span class="pill pill-ok">
+              DB1: {{ info.db1 }}
+            </span>
+            <span class="pill pill-ok">
+              DB2: {{ info.db2 }}
+            </span>
+            {% if info.db3 is defined %}
+            <span class="pill pill-standby">
+              DB3: {{ info.db3 }}
+            </span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── REPLICA CONSISTENCY SECTION ── #}
+    {% if consistency is defined %}
     <h2 class="section-title">Replica consistency</h2>
     <div class="monitor-card consistency-card">
       {% if consistency.error is defined %}
       <p class="consistency-error">
         ⚠ Could not run consistency check: {{ consistency.error }}
       </p>
-
       {% else %}
       <div class="consistency-grid">
         {# Science Articles replica #}
@@ -144,16 +199,12 @@ content %}
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill"
-              >DB1&nbsp;<strong
-                >{{ consistency.science_articles.db1 }}</strong
-              ></span
-            >
-            <span class="node-pill"
-              >DB2&nbsp;<strong
-                >{{ consistency.science_articles.db2 }}</strong
-              ></span
-            >
+            <span class="node-pill">
+              DB1&nbsp;<strong>{{ consistency.science_articles.db1 }}</strong>
+            </span>
+            <span class="node-pill">
+              DB2&nbsp;<strong>{{ consistency.science_articles.db2 }}</strong>
+            </span>
           </div>
           <span
             class="match-badge {% if consistency.science_articles.match %}match{% else %}mismatch{% endif %}"
@@ -173,12 +224,12 @@ content %}
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill"
-              >DB1&nbsp;<strong>{{ consistency.bereads.db1 }}</strong></span
-            >
-            <span class="node-pill"
-              >DB2&nbsp;<strong>{{ consistency.bereads.db2 }}</strong></span
-            >
+            <span class="node-pill">
+              DB1&nbsp;<strong>{{ consistency.bereads.db1 }}</strong>
+            </span>
+            <span class="node-pill">
+              DB2&nbsp;<strong>{{ consistency.bereads.db2 }}</strong>
+            </span>
           </div>
           <span
             class="match-badge {% if consistency.bereads.db1 <= consistency.bereads.db2 %}match{% else %}mismatch{% endif %}"
@@ -198,25 +249,23 @@ content %}
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill"
-              >DB1&nbsp;<strong
-                >{{ consistency.popular_rank.db1 }}</strong
-              ></span
-            >
-            <span class="node-pill"
-              >DB2&nbsp;<strong
-                >{{ consistency.popular_rank.db2 }}</strong
-              ></span
-            >
+            <span class="node-pill">
+              DB1&nbsp;<strong>{{ consistency.popular_rank.db1 }}</strong>
+            </span>
+            <span class="node-pill">
+              DB2&nbsp;<strong>{{ consistency.popular_rank.db2 }}</strong>
+            </span>
           </div>
           <span
             class="match-badge {% if consistency.popular_rank.db1 > 0 and consistency.popular_rank.db2 > 0 %}match{% else %}mismatch{% endif %}"
           >
-            {% if consistency.popular_rank.db1 > 0 and
-            consistency.popular_rank.db2 > 0 %} ✅ Both populated {% elif
-            consistency.popular_rank.db1 == 0 and consistency.popular_rank.db2
-            == 0 %} ❌ Both empty — run derive_popular_rank.py {% else %} ⚠
-            Partial — re-run derivation {% endif %}
+            {% if consistency.popular_rank.db1 > 0 and consistency.popular_rank.db2 > 0 %}
+              ✅ Both populated
+            {% elif consistency.popular_rank.db1 == 0 and consistency.popular_rank.db2 == 0 %}
+              ❌ Both empty — run derive_popular_rank.py
+            {% else %}
+              ⚠ Partial — re-run derivation
+            {% endif %}
           </span>
         </div>
 
@@ -233,34 +282,45 @@ content %}
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill muted-pill"
-              >AID&nbsp;<strong
-                >{{ consistency.sample_record.aid }}</strong
-              ></span
-            >
+            <span class="node-pill muted-pill">
+              AID&nbsp;<strong>{{ consistency.sample_record.aid }}</strong>
+            </span>
           </div>
           <span
             class="match-badge {% if consistency.sample_record.match == true %}match {% elif consistency.sample_record.match == false %}mismatch {% else %}warn{% endif %}"
           >
-            {% if consistency.sample_record.match == true %}✅ Records match {%
-            elif consistency.sample_record.match == false %}❌ Records differ {%
-            else %}⚠ Could not compare {% endif %}
+            {% if consistency.sample_record.match == true %}
+              ✅ Records match
+            {% elif consistency.sample_record.match == false %}
+              ❌ Records differ
+            {% else %}
+              ⚠ Could not compare
+            {% endif %}
           </span>
         </div>
+
         {% if consistency.standby_sync %}
         <div class="consistency-row">
           <div class="consistency-label">
             <span class="c-icon">🔄</span>
             <div>
               <strong>DB3 Hot Standby sync</strong>
-              <p class="muted">DB3 should mirror DB1 reads and users exactly</p>
+              <p class="muted">
+                DB3 should mirror DB1 reads and users exactly
+              </p>
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill">Reads DB1&nbsp;<strong>{{ consistency.standby_sync.reads.db1 }}</strong></span>
-            <span class="node-pill">Reads DB3&nbsp;<strong>{{ consistency.standby_sync.reads.db3 }}</strong></span>
+            <span class="node-pill">
+              Reads DB1&nbsp;<strong>{{ consistency.standby_sync.reads.db1 }}</strong>
+            </span>
+            <span class="node-pill">
+              Reads DB3&nbsp;<strong>{{ consistency.standby_sync.reads.db3 }}</strong>
+            </span>
           </div>
-          <span class="match-badge {% if consistency.standby_sync.reads.match and consistency.standby_sync.users.match %}match{% else %}mismatch{% endif %}">
+          <span
+            class="match-badge {% if consistency.standby_sync.reads.match and consistency.standby_sync.users.match %}match{% else %}mismatch{% endif %}"
+          >
             {% if consistency.standby_sync.reads.match and consistency.standby_sync.users.match %}
               ✅ Fully synced
             {% else %}
@@ -272,12 +332,11 @@ content %}
       </div>
       {% endif %}
     </div>
-    {% endif %} {# ── END REPLICA CONSISTENCY ── #}
+    {% endif %}
 
     <h2 class="section-title">Popular rankings</h2>
-
     {% for label, items in [("Daily", ranks.daily), ("Weekly", ranks.weekly),
-    ("Monthly", ranks.monthly)] %}
+                            ("Monthly", ranks.monthly)] %}
     <div class="ranking-block">
       <div class="ranking-head">
         <h3>{{ label }}</h3>
@@ -290,21 +349,20 @@ content %}
             class="popular-link"
             href="{{ url_for('article_detail', aid=item.aid) }}"
           >
-          {% if item.image_urls %}
-          <img
-            class="popular-image"
-            src="{{ item.image_urls[0] }}"
-            alt="{{ item.title }}"
-            loading="lazy"
-          />
-          {% else %}
-          <div class="popular-image placeholder">No image</div>
-          {% endif %}
+            {% if item.image_urls %}
+            <img
+              class="popular-image"
+              src="{{ item.image_urls[0] }}"
+              alt="{{ item.title }}"
+              loading="lazy"
+            />
+            {% else %}
+            <div class="popular-image placeholder">No image</div>
+            {% endif %}
             <div class="popular-body">
               {% if item.video_url %}
               <span class="video-badge">🎬</span>
               {% endif %}
-
               <p class="rank-label">
                 AID {{ item.aid }} · {{ item.category|title }}
               </p>
@@ -322,252 +380,4 @@ content %}
     {% endfor %}
   </div>
 </section>
-
-<style>
-  .monitor-page {
-    max-width: 1180px;
-    margin: 0 auto;
-  }
-  .monitor-hero {
-    text-align: center;
-    margin-bottom: 2.5rem;
-  }
-  .monitor-hero h1 {
-    margin-bottom: 0.5rem;
-  }
-  .monitor-hero p {
-    max-width: 760px;
-    margin: 0 auto;
-    color: #666;
-  }
-  .section-title {
-    text-align: center;
-    margin: 2.25rem 0 1.25rem;
-  }
-  .monitor-grid {
-    display: grid;
-    gap: 1.25rem;
-    margin-bottom: 2rem;
-  }
-  .monitor-grid.two-col {
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  }
-  .monitor-card {
-    background: #fff;
-    border: 1px solid #e4e4e7;
-    border-radius: 18px;
-    padding: 1.25rem;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
-  }
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-  }
-  .status-badge {
-    display: inline-block;
-    padding: 0.35rem 0.7rem;
-    border-radius: 999px;
-    background: #ecfdf3;
-    color: #157347;
-    font-size: 0.9rem;
-    font-weight: 600;
-  }
-  .centered {
-    text-align: center;
-  }
-  .info-block {
-    margin-top: 1rem;
-  }
-  .info-block h4 {
-    margin-bottom: 0.75rem;
-  }
-  .mini-title {
-    margin: 1rem 0 0.5rem;
-    font-weight: 600;
-  }
-  .stat-list {
-    display: grid;
-    gap: 0.55rem;
-  }
-  .stat-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.65rem 0.8rem;
-    border-radius: 12px;
-    background: #f7f7f9;
-  }
-  .ranking-block {
-    margin-bottom: 2rem;
-  }
-  .ranking-head {
-    text-align: center;
-    margin-bottom: 1rem;
-  }
-  .ranking-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1.25rem;
-  }
-  .popular-card {
-    background: #fff;
-    border: 1px solid #e4e4e7;
-    border-radius: 18px;
-    overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-    transition:
-      transform 0.18s ease,
-      box-shadow 0.18s ease;
-  }
-  .popular-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.08);
-  }
-  .popular-link {
-    display: block;
-    color: inherit;
-    text-decoration: none;
-    height: 100%;
-  }
-  .popular-image {
-    width: 100%;
-    height: 190px;
-    object-fit: cover;
-    background: #f2f2f2;
-  }
-  .popular-image.placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #777;
-  }
-  .popular-body {
-    padding: 1rem;
-    text-align: center;
-  }
-  .popular-body h4 {
-    margin: 0.35rem 0 0.4rem;
-  }
-  .rank-label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #4f46e5;
-  }
-  .muted {
-    color: #666;
-  }
-  .empty-note {
-    text-align: center;
-    color: #666;
-    grid-column: 1 / -1;
-  }
-
-  /* ── NEW: Replica Consistency styles ── */
-  .consistency-card {
-    margin-bottom: 2rem;
-  }
-  .consistency-grid {
-    display: grid;
-    gap: 0.75rem;
-  }
-  .consistency-row {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.9rem 1rem;
-    border-radius: 12px;
-    background: #f7f7f9;
-    flex-wrap: wrap;
-  }
-  .consistency-label {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
-    flex: 1;
-    min-width: 200px;
-  }
-  .consistency-label p {
-    margin: 0.15rem 0 0;
-    font-size: 0.82rem;
-    max-width: none;
-  }
-  .c-icon {
-    font-size: 1.3rem;
-    line-height: 1;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-  .consistency-values {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-  .node-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.65rem;
-    border-radius: 999px;
-    background: #ededf5;
-    font-size: 0.85rem;
-    white-space: nowrap;
-  }
-  .muted-pill {
-    background: #f0f0f0;
-    color: #555;
-  }
-  .match-badge {
-    display: inline-block;
-    padding: 0.35rem 0.75rem;
-    border-radius: 999px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .match-badge.match {
-    background: #ecfdf3;
-    color: #157347;
-  }
-  .match-badge.mismatch {
-    background: #fef2f2;
-    color: #b91c1c;
-  }
-  .match-badge.warn {
-    background: #fffbeb;
-    color: #92400e;
-  }
-  .consistency-error {
-    color: #b91c1c;
-    padding: 0.5rem;
-  }
-
-  @media (max-width: 700px) {
-    .popular-image {
-      height: 180px;
-    }
-    .card-header,
-    .stat-row {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .popular-body {
-      text-align: left;
-    }
-    .monitor-hero,
-    .section-title,
-    .ranking-head {
-      text-align: left;
-    }
-    .consistency-row {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .match-badge {
-      align-self: flex-start;
-    }
-  }
-</style>
 {% endblock %}
