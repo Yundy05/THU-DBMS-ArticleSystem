@@ -576,8 +576,9 @@ def _which_db1_node() -> str:
         return "MongoDB3 (hot standby active)"
 
 def run_queries_data() -> dict:
+    statuses = node_status()
     db1_node = _which_db1_node()
-    failover = "MongoDB3" in db1_node  # True when DB3 is serving DB1 role
+    failover = "MongoDB3" in db1_node 
 
     # Query 1 & 2: Users by region
     users_beijing = list(db1_or_standby()["users"]
@@ -628,6 +629,10 @@ def run_queries_data() -> dict:
     return {
         "db1_node":       db1_node,
         "failover":       failover,
+        "db1_status":     statuses.get("MongoDB1", "soffline"),   
+        "db2_status":     statuses.get("MongoDB2", "offline"),   
+        "db3_status":     statuses.get("MongoDB3", "offline"),   
+        "db4_status":     statuses.get("MongoDB4", "offline"),  
         "users_beijing":  users_beijing,
         "users_hk":       users_hk,
         "articles_sci":   articles_sci,
@@ -637,6 +642,7 @@ def run_queries_data() -> dict:
         "reads_node":     reads_node,
         "ranks":          ranks,
     }
+    
 @app.route("/queries")
 def queries_page():
     return render_template("queries.html", **run_queries_data())

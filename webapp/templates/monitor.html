@@ -53,54 +53,61 @@
           {% endif %}
         </div>
 
-        {% if node.managed_data %}
         <div class="info-block">
           <h4>Managed data</h4>
-
-          {% if node.managed_data.regions %}
-          <p class="mini-title">Users by region</p>
-          <div class="stat-list">
-            {% for name, count in node.managed_data.regions.items() %}
-            <div class="stat-row">
-              <span>{{ name }}</span>
-              <strong>{{ count }}</strong>
+          {% if node.managed_data and (
+              node.managed_data.regions or
+              node.managed_data.article_categories or
+              node.managed_data.popular_rank_granularity
+          ) %}
+            {% if node.managed_data.regions %}
+            <p class="mini-title">Users by region</p>
+            <div class="stat-list">
+              {% for name, count in node.managed_data.regions.items() %}
+              <div class="stat-row">
+                <span>{{ name }}</span>
+                <strong>{{ count }}</strong>
+              </div>
+              {% endfor %}
             </div>
-            {% endfor %}
-          </div>
-          {% endif %}
+            {% endif %}
 
-          {% if node.managed_data.article_categories %}
-          <p class="mini-title">Articles by category</p>
-          <div class="stat-list">
-            {% for name, count in node.managed_data.article_categories.items() %}
-            <div class="stat-row">
-              <span>{{ name|title }}</span>
-              <strong>{{ count }}</strong>
+            {% if node.managed_data.article_categories %}
+            <p class="mini-title">Articles by category</p>
+            <div class="stat-list">
+              {% for name, count in node.managed_data.article_categories.items() %}
+              <div class="stat-row">
+                <span>{{ name|title }}</span>
+                <strong>{{ count }}</strong>
+              </div>
+              {% endfor %}
             </div>
-            {% endfor %}
-          </div>
-          {% endif %}
+            {% endif %}
 
-          {% if node.managed_data.popular_rank_granularity %}
-          <p class="mini-title">Popular rank granularity</p>
-          <div class="stat-list">
-            {% for name, count in node.managed_data.popular_rank_granularity.items() %}
-            <div class="stat-row">
-              <span>{{ name|title }}</span>
-              <strong>{{ count }}</strong>
+            {% if node.managed_data.popular_rank_granularity %}
+            <p class="mini-title">Popular rank granularity</p>
+            <div class="stat-list">
+              {% for name, count in node.managed_data.popular_rank_granularity.items() %}
+              <div class="stat-row">
+                <span>{{ name|title }}</span>
+                <strong>{{ count }}</strong>
+              </div>
+              {% endfor %}
             </div>
-            {% endfor %}
-          </div>
+            {% endif %}
+
+          {% elif node.label.startswith('MongoDB4') %}
+            <p class="muted" style="font-size:0.85rem; margin-top:0.4rem;">
+              🆕 Expansion node — no shards assigned yet. Receives migrated data via migrate_to_mongo4.py.
+            </p>
+
+          {% else %}
+            <p class="muted" style="font-size:0.85rem; margin-top:0.4rem;">
+              🔁 Hot standby — mirrors MongoDB1. See DB1 for managed data breakdown.
+            </p>
           {% endif %}
         </div>
-        {% else %}
-        <div class="info-block standby-note">
-          <h4>Managed data</h4>
-          <p class="muted" style="font-size:0.85rem; margin-top:0.4rem;">
-            🔁 Hot standby — mirrors MongoDB1. See DB1 for managed data breakdown.
-          </p>
-        </div>
-        {% endif %}
+
       </article>
       {% endfor %}
     </div>
@@ -132,7 +139,6 @@
 
     {% if load_status %}
     <h2 class="section-title">Data loading status</h2>
-
     <div class="monitor-card">
       <div class="monitor-card-header">
         <h3>Bulk load & partitioning</h3>
@@ -140,35 +146,38 @@
           Expected vs actual records per node (shows bulk load and fragmentation).
         </p>
       </div>
-
       <div class="stat-list">
         {% for name, info in load_status.items() %}
+        {% set total_actual = (info.db1 or 0) + (info.db2 or 0) + (info.db3 or 0) %}
+        {% if info.expected %}
+          {% set diff_abs = ((total_actual - info.expected) ** 2) ** 0.5 %}
+          {% set within_tolerance = diff_abs <= (info.expected * 0.05) %}
+        {% else %}
+          {% set within_tolerance = true %}
+        {% endif %}
         <div class="stat-row">
           <div class="stat-label">
-            {% if name == "users" %}
-              Users
-            {% elif name == "articles" %}
-              Articles
-            {% elif name == "reads" %}
-              Reads
-            {% else %}
-              {{ name|title }}
+            {% if name == "users" %}Users
+            {% elif name == "articles" %}Articles
+            {% elif name == "reads" %}Reads
+            {% else %}{{ name|title }}
             {% endif %}
           </div>
           <div class="stat-value">
-            <span class="pill pill-muted">
-              Expected: {{ info.expected }}
-            </span>
-            <span class="pill pill-ok">
-              DB1: {{ info.db1 }}
-            </span>
-            <span class="pill pill-ok">
-              DB2: {{ info.db2 }}
-            </span>
+            <span class="pill pill-muted">Expected: {{ info.expected }}</span>
+            <span class="pill pill-ok">DB1: {{ info.db1 }}</span>
+            <span class="pill pill-ok">DB2: {{ info.db2 }}</span>
             {% if info.db3 is defined %}
-            <span class="pill pill-standby">
-              DB3: {{ info.db3 }}
-            </span>
+            <span class="pill pill-standby">DB3: {{ info.db3 }}</span>
+            {% endif %}
+          </div>
+          <div class="stat-helper">
+            {% if within_tolerance %}
+              <span class="pill pill-ok">✅ OK — total {{ total_actual }}</span>
+            {% elif total_actual < info.expected %}
+              <span class="pill pill-warn">⚠ Underloaded — total {{ total_actual }}</span>
+            {% else %}
+              <span class="pill pill-warn">⚠ Overloaded — total {{ total_actual }}</span>
             {% endif %}
           </div>
         </div>
@@ -187,34 +196,24 @@
       </p>
       {% else %}
       <div class="consistency-grid">
-        {# Science Articles replica #}
+
         <div class="consistency-row">
           <div class="consistency-label">
             <span class="c-icon">🗂</span>
             <div>
               <strong>Science Articles</strong>
-              <p class="muted">
-                Replicated on DB1 <em>and</em> DB2 (fragmentation rule)
-              </p>
+              <p class="muted">Replicated on DB1 <em>and</em> DB2 (fragmentation rule)</p>
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill">
-              DB1&nbsp;<strong>{{ consistency.science_articles.db1 }}</strong>
-            </span>
-            <span class="node-pill">
-              DB2&nbsp;<strong>{{ consistency.science_articles.db2 }}</strong>
-            </span>
+            <span class="node-pill">DB1&nbsp;<strong>{{ consistency.science_articles.db1 }}</strong></span>
+            <span class="node-pill">DB2&nbsp;<strong>{{ consistency.science_articles.db2 }}</strong></span>
           </div>
-          <span
-            class="match-badge {% if consistency.science_articles.match %}match{% else %}mismatch{% endif %}"
-          >
-            {% if consistency.science_articles.match %}✅ In sync{% else %}❌
-            Mismatch{% endif %}
+          <span class="match-badge {% if consistency.science_articles.match %}match{% else %}mismatch{% endif %}">
+            {% if consistency.science_articles.match %}✅ In sync{% else %}❌ Mismatch{% endif %}
           </span>
         </div>
 
-        {# Be-Read replica #}
         <div class="consistency-row">
           <div class="consistency-label">
             <span class="c-icon">📊</span>
@@ -224,22 +223,14 @@
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill">
-              DB1&nbsp;<strong>{{ consistency.bereads.db1 }}</strong>
-            </span>
-            <span class="node-pill">
-              DB2&nbsp;<strong>{{ consistency.bereads.db2 }}</strong>
-            </span>
+            <span class="node-pill">DB1&nbsp;<strong>{{ consistency.bereads.db1 }}</strong></span>
+            <span class="node-pill">DB2&nbsp;<strong>{{ consistency.bereads.db2 }}</strong></span>
           </div>
-          <span
-            class="match-badge {% if consistency.bereads.db1 <= consistency.bereads.db2 %}match{% else %}mismatch{% endif %}"
-          >
-            {% if consistency.bereads.db1 <= consistency.bereads.db2 %}✅ Valid
-            split{% else %}❌ Check needed{% endif %}
+          <span class="match-badge {% if consistency.bereads.db1 <= consistency.bereads.db2 %}match{% else %}mismatch{% endif %}">
+            {% if consistency.bereads.db1 <= consistency.bereads.db2 %}✅ Valid split{% else %}❌ Check needed{% endif %}
           </span>
         </div>
 
-        {# Popular Rank split #}
         <div class="consistency-row">
           <div class="consistency-label">
             <span class="c-icon">🏆</span>
@@ -249,16 +240,10 @@
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill">
-              DB1&nbsp;<strong>{{ consistency.popular_rank.db1 }}</strong>
-            </span>
-            <span class="node-pill">
-              DB2&nbsp;<strong>{{ consistency.popular_rank.db2 }}</strong>
-            </span>
+            <span class="node-pill">DB1&nbsp;<strong>{{ consistency.popular_rank.db1 }}</strong></span>
+            <span class="node-pill">DB2&nbsp;<strong>{{ consistency.popular_rank.db2 }}</strong></span>
           </div>
-          <span
-            class="match-badge {% if consistency.popular_rank.db1 > 0 and consistency.popular_rank.db2 > 0 %}match{% else %}mismatch{% endif %}"
-          >
+          <span class="match-badge {% if consistency.popular_rank.db1 > 0 and consistency.popular_rank.db2 > 0 %}match{% else %}mismatch{% endif %}">
             {% if consistency.popular_rank.db1 > 0 and consistency.popular_rank.db2 > 0 %}
               ✅ Both populated
             {% elif consistency.popular_rank.db1 == 0 and consistency.popular_rank.db2 == 0 %}
@@ -269,33 +254,21 @@
           </span>
         </div>
 
-        {# Sample record spot-check #}
         <div class="consistency-row">
           <div class="consistency-label">
             <span class="c-icon">🔍</span>
             <div>
               <strong>Sample record spot-check</strong>
-              <p class="muted">
-                Article AID {{ consistency.sample_record.aid }} compared across
-                replicas
-              </p>
+              <p class="muted">Article AID {{ consistency.sample_record.aid }} compared across replicas</p>
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill muted-pill">
-              AID&nbsp;<strong>{{ consistency.sample_record.aid }}</strong>
-            </span>
+            <span class="node-pill muted-pill">AID&nbsp;<strong>{{ consistency.sample_record.aid }}</strong></span>
           </div>
-          <span
-            class="match-badge {% if consistency.sample_record.match == true %}match {% elif consistency.sample_record.match == false %}mismatch {% else %}warn{% endif %}"
-          >
-            {% if consistency.sample_record.match == true %}
-              ✅ Records match
-            {% elif consistency.sample_record.match == false %}
-              ❌ Records differ
-            {% else %}
-              ⚠ Could not compare
-            {% endif %}
+          <span class="match-badge {% if consistency.sample_record.match == true %}match{% elif consistency.sample_record.match == false %}mismatch{% else %}warn{% endif %}">
+            {% if consistency.sample_record.match == true %}✅ Records match
+            {% elif consistency.sample_record.match == false %}❌ Records differ
+            {% else %}⚠ Could not compare{% endif %}
           </span>
         </div>
 
@@ -305,22 +278,14 @@
             <span class="c-icon">🔄</span>
             <div>
               <strong>DB3 Hot Standby sync</strong>
-              <p class="muted">
-                DB3 should mirror DB1 reads and users exactly
-              </p>
+              <p class="muted">DB3 should mirror DB1 reads and users exactly</p>
             </div>
           </div>
           <div class="consistency-values">
-            <span class="node-pill">
-              Reads DB1&nbsp;<strong>{{ consistency.standby_sync.reads.db1 }}</strong>
-            </span>
-            <span class="node-pill">
-              Reads DB3&nbsp;<strong>{{ consistency.standby_sync.reads.db3 }}</strong>
-            </span>
+            <span class="node-pill">Reads DB1&nbsp;<strong>{{ consistency.standby_sync.reads.db1 }}</strong></span>
+            <span class="node-pill">Reads DB3&nbsp;<strong>{{ consistency.standby_sync.reads.db3 }}</strong></span>
           </div>
-          <span
-            class="match-badge {% if consistency.standby_sync.reads.match and consistency.standby_sync.users.match %}match{% else %}mismatch{% endif %}"
-          >
+          <span class="match-badge {% if consistency.standby_sync.reads.match and consistency.standby_sync.users.match %}match{% else %}mismatch{% endif %}">
             {% if consistency.standby_sync.reads.match and consistency.standby_sync.users.match %}
               ✅ Fully synced
             {% else %}
@@ -329,43 +294,30 @@
           </span>
         </div>
         {% endif %}
+
       </div>
       {% endif %}
     </div>
     {% endif %}
 
     <h2 class="section-title">Popular rankings</h2>
-    {% for label, items in [("Daily", ranks.daily), ("Weekly", ranks.weekly),
-                            ("Monthly", ranks.monthly)] %}
+    {% for label, items in [("Daily", ranks.daily), ("Weekly", ranks.weekly), ("Monthly", ranks.monthly)] %}
     <div class="ranking-block">
       <div class="ranking-head">
         <h3>{{ label }}</h3>
       </div>
-
       <div class="ranking-grid">
         {% for item in items %}
         <article class="popular-card">
-          <a
-            class="popular-link"
-            href="{{ url_for('article_detail', aid=item.aid) }}"
-          >
+          <a class="popular-link" href="{{ url_for('article_detail', aid=item.aid) }}">
             {% if item.image_urls %}
-            <img
-              class="popular-image"
-              src="{{ item.image_urls[0] }}"
-              alt="{{ item.title }}"
-              loading="lazy"
-            />
+            <img class="popular-image" src="{{ item.image_urls[0] }}" alt="{{ item.title }}" loading="lazy"/>
             {% else %}
             <div class="popular-image placeholder">No image</div>
             {% endif %}
             <div class="popular-body">
-              {% if item.video_url %}
-              <span class="video-badge">🎬</span>
-              {% endif %}
-              <p class="rank-label">
-                AID {{ item.aid }} · {{ item.category|title }}
-              </p>
+              {% if item.video_url %}<span class="video-badge">🎬</span>{% endif %}
+              <p class="rank-label">AID {{ item.aid }} · {{ item.category|title }}</p>
               <h4>{{ item.title }}</h4>
               <p class="muted">{{ item.authors }}</p>
               <p>{{ item.abstract }}</p>
@@ -378,6 +330,7 @@
       </div>
     </div>
     {% endfor %}
+
   </div>
 </section>
 {% endblock %}

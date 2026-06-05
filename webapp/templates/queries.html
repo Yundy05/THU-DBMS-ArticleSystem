@@ -3,7 +3,6 @@
 {% block content %}
 
 <div class="qd-wrap">
-...
 
   <!-- Hero -->
   <div class="qd-hero">
@@ -14,18 +13,21 @@
   <!-- Node status bar (auto-refreshes every 5s via JS) -->
     <div class="node-bar" id="node-bar">
     {% for name, status in [
-            ("MongoDB1", "offline" if failover else "online"),
-            ("MongoDB2", "online"),
-            ("MongoDB3", "online" if failover else "standby")
-        ] %}
-        <div class="node-pill {{ status }}">
-        <span class="node-dot"></span>
-        {{ name }}{% if name == "MongoDB3" %} (hot standby){% endif %}
-        &nbsp;·&nbsp;{{ status }}
+        ("MongoDB1", "offline" if failover else db1_status),
+        ("MongoDB2", db2_status),
+        ("MongoDB3", db3_status),
+        ("MongoDB4", db4_status)
+    ] %}
+        <div class="node-pill {% if status == 'online' %}online{% elif status == 'standby' %}standby{% else %}offline{% endif %}">
+            <span class="node-dot"></span>
+            {{ name }}
+            {% if name == "MongoDB3" %} (hot standby)
+            {% elif name == "MongoDB4" %} (expansion)
+            {% endif %}
+            &nbsp;·&nbsp;{{ status }}
         </div>
     {% endfor %}
     </div>
-
   <p class="refresh-hint" id="refresh-timer">Refreshing node status in <span id="countdown">5</span>s</p>
 
   <!-- Failover / OK banner -->
@@ -87,6 +89,18 @@
         <tr>
           <td>6</td><td>Weekly / Monthly popular rank</td>
           <td><span class="nbadge db2">MongoDB2</span></td>
+        </tr>
+        <tr>
+        <td>—</td>
+        <td>Expansion / data migration target</td>
+        <td>
+            <span class="nbadge {{ 'db1' if db4_status == 'online' else 'offline' }}">
+            MongoDB4
+            {% if db4_status == 'online' %}(online — migrated data)
+            {% else %}(offline — reserved)
+            {% endif %}
+            </span>
+        </td>
         </tr>
       </tbody>
     </table>
@@ -233,14 +247,13 @@
 </div>
 
 <script>
-  // Auto-refresh every 5s to reflect live node status changes (e.g. DB1 going down)
   let countdown = 5;
   const el = document.getElementById("countdown");
   const interval = setInterval(() => {
     countdown--;
     if (el) el.textContent = countdown;
     if (countdown <= 0) {
-      clearInterval(interval);           // ← stop the timer
+      clearInterval(interval);
       if (el) el.textContent = "0";
       window.location.reload();
     }
