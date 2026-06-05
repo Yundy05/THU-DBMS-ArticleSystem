@@ -8,6 +8,58 @@ import time
 import uuid
 from pymongo import MongoClient
 import os
+import json
+import redis as redis_lib
+
+# - Redis Cahce -
+CACHE_TTL = int(os.getenv("CACHE_TTL", 60))
+
+def _get_redis() -> redis_lib.Redis:
+    return redis_lib.from_url(
+        os.getenv("REDIS_URI", "redis://localhost:6379"),
+        decode_responses=True,
+    )
+
+def _cache_get(key: str):
+    try:
+        raw = _get_redis().get(key)
+        return json.loads(raw) if raw else None
+    except Exception:
+        return None  # Redis down → degrade gracefully, hit MongoDB
+
+def _cache_set(key: str, value):
+    try:
+        _get_redis().setex(key, CACHE_TTL, json.dumps(value))
+    except Exception:
+        pass  # Redis down → still return value, just uncached
+    return value
+
+def cache_clear():
+    """Flush all cached keys — call after any write."""
+    try:
+        _get_redis().flushdb()
+    except Exception:
+        pass
+
+def cache_stats() -> dict:
+    try:
+        r = _get_redis()
+        info = r.info("stats")
+        keyspace = r.info("keyspace")
+        db_info = keyspace.get("db0", {})
+        return {
+            "status":       "online",
+            "live_keys":    db_info.get("keys", 0),
+            "ttl_seconds":  CACHE_TTL,
+            "hits":         info.get("keyspace_hits", 0),
+            "misses":       info.get("keyspace_misses", 0),
+            "evictions":    info.get("evicted_keys", 0),
+        }
+    except Exception:
+        return {"status": "offline", "live_keys": 0, "ttl_seconds": CACHE_TTL,
+                "hits": 0, "misses": 0, "evictions": 0}
+        
+# - MongoDB Connections and App Setup -
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -47,8 +99,15 @@ def parse_csv(value):
 
 
 def article_lookup(aid):
-    return db2()["articles"].find_one({"aid": aid}, {"_id": 0}) or db1_or_standby()["articles"].find_one({"aid": aid}, {"_id": 0})
-
+    key = f"article:{aid}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+    result = (
+        db2()["articles"].find_one({"aid": aid}, {"_id": 0})
+        or db1_or_standby()["articles"].find_one({"aid": aid}, {"_id": 0})
+    )
+    return _cache_set(key, result)
 
 def safe_preview(text, n=220):
     if not text:
@@ -283,6 +342,10 @@ def workload_summary():
 
 
 def latest_ranks():
+    cached = _cache_get("latest_ranks")
+    if cached is not None:
+        return cached
+
     docs = {
         "daily":   db1_or_standby()["popular_rank"].find_one({"temporalGranularity": "daily"},   {"_id": 0}),
         "weekly":  db2()["popular_rank"].find_one({"temporalGranularity": "weekly"},  {"_id": 0}),
@@ -294,25 +357,25 @@ def latest_ranks():
         rows = []
         if doc:
             for aid in doc.get("articleAidList", [])[:5]:
-                art = article_lookup(aid)
+                art = article_lookup(aid)  # also cached
                 if art:
-                    # ✅ Convert Path objects → URL strings for serve_image
                     aid_digits = normalize_digits(aid)
-                    image_urls = []
-                    for p in existing_image_candidates(art):
-                        image_urls.append(f"/assets/image/{aid_digits}/{p.name}")
-
+                    image_urls = [
+                        f"/assets/image/{aid_digits}/{p.name}"
+                        for p in existing_image_candidates(art)
+                    ]
                     rows.append({
                         "aid":        aid,
-                        "title":      art.get("title",    "Untitled"),
+                        "title":      art.get("title", "Untitled"),
                         "category":   art.get("category", "unknown"),
-                        "authors":    art.get("authors",  "Unknown"),
+                        "authors":    art.get("authors", "Unknown"),
                         "abstract":   safe_preview(art.get("abstract", ""), 120),
-                        "image_urls": image_urls,  
+                        "image_urls": image_urls,
                         "video_url":  existing_video(art),
                     })
         enriched[granularity] = rows
-    return enriched
+
+    return _cache_set("latest_ranks", enriched)
 
 
 @app.route("/")
@@ -435,6 +498,7 @@ def monitor():
         consistency=replica_consistency(),
         workload=workload_summary(),
         load_status=load_status(),
+        cache=cache_stats(), 
     )
 
 @app.route("/assets/image/<aid>/<filename>")
@@ -736,7 +800,7 @@ def insert_read(uid: str, aid: str, agree: str, comment: str,
                         f"{'replicated to DB1+DB2' if category=='science' else 'DB2 only'}",
         })
     
-
+    cache_clear()  # flush Redis after any write to ensure subsequent reads see latest data
     return trace
 
 

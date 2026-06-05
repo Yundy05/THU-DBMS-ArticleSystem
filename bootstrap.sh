@@ -62,4 +62,10 @@ else
   echo "Skipping MongoDB4 migration — container not running."
 fi
 
+echo "Waiting for Redis..."
+until docker exec redis redis-cli ping | grep -q PONG >/dev/null 2>&1; do
+  sleep 1
+done
+echo "Redis is ready."
+
 echo "Bootstrap complete."

@@ -34,9 +34,19 @@ services:
       - mongo4_data:/data/db
     profiles:
       - expansion
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes  # persist cache across restarts
+
 
 volumes:
   mongo1_data:
   mongo2_data:
   mongo3_data:
   mongo4_data:
+  redis_data:

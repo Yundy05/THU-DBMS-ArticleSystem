@@ -112,6 +112,35 @@
       {% endfor %}
     </div>
 
+    {% if cache is defined %}
+    <h2 class="section-title">Redis cache</h2>
+    <div class="monitor-card">
+      <div class="stat-list">
+        <div class="stat-row">
+          <span>Status</span>
+          <strong>
+            {% if cache.status == 'online' %}🟢 Online{% else %}🔴 Offline{% endif %}
+          </strong>
+        </div>
+        <div class="stat-row">
+          <span>Live keys</span><strong>{{ cache.live_keys }}</strong>
+        </div>
+        <div class="stat-row">
+          <span>TTL</span><strong>{{ cache.ttl_seconds }}s</strong>
+        </div>
+        <div class="stat-row">
+          <span>Cache hits</span><strong>{{ cache.hits }}</strong>
+        </div>
+        <div class="stat-row">
+          <span>Cache misses</span><strong>{{ cache.misses }}</strong>
+        </div>
+        <div class="stat-row">
+          <span>Evictions</span><strong>{{ cache.evictions }}</strong>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     {% if workload is defined %}
     <h2 class="section-title">Workload</h2>
     <div class="monitor-grid two-col">
