@@ -329,36 +329,37 @@
     </div>
     {% endif %}
 
-    <h2 class="section-title">Popular rankings</h2>
-    {% for label, items in [("Daily", ranks.daily), ("Weekly", ranks.weekly), ("Monthly", ranks.monthly)] %}
-    <div class="ranking-block">
-      <div class="ranking-head">
-        <h3>{{ label }}</h3>
-      </div>
-      <div class="ranking-grid">
-        {% for item in items %}
-        <article class="popular-card">
-          <a class="popular-link" href="{{ url_for('article_detail', aid=item.aid) }}">
-            {% if item.image_urls %}
-            <img class="popular-image" src="{{ item.image_urls[0] }}" alt="{{ item.title }}" loading="lazy"/>
-            {% else %}
-            <div class="popular-image placeholder">No image</div>
-            {% endif %}
-            <div class="popular-body">
-              {% if item.video_url %}<span class="video-badge">🎬</span>{% endif %}
-              <p class="rank-label">AID {{ item.aid }} · {{ item.category|title }}</p>
-              <h4>{{ item.title }}</h4>
-              <p class="muted">{{ item.authors }}</p>
-              <p>{{ item.abstract }}</p>
-            </div>
-          </a>
-        </article>
-        {% else %}
-        <p class="empty-note">No {{ label|lower }} ranking data.</p>
-        {% endfor %}
-      </div>
+  <h2 class="section-title">Popular rankings</h2>
+  {% for label, key in [("Daily", "daily"), ("Weekly", "weekly"), ("Monthly", "monthly")] %}
+  <div class="ranking-block">
+    <div class="ranking-head">
+      <h3>{{ label }}</h3>
     </div>
-    {% endfor %}
+    <div class="ranking-grid">
+      {% set items = ranks.get(key, []) %}
+      {% for item in items %}
+      <article class="popular-card">
+        <a class="popular-link" href="{{ url_for('article_detail', aid=item.aid) }}">
+          {% if item.image_urls %}
+          <img class="popular-image" src="{{ item.image_urls[0] }}" alt="{{ item.title }}" loading="lazy"/>
+          {% else %}
+          <div class="popular-image placeholder">No image</div>
+          {% endif %}
+          <div class="popular-body">
+            {% if item.video_url %}<span class="video-badge">🎬</span>{% endif %}
+            <p class="rank-label">AID {{ item.aid }} · {{ item.category|title }}</p>
+            <h4>{{ item.title }}</h4>
+            <p class="muted">{{ item.authors }}</p>
+            <p>{{ item.abstract }}</p>
+          </div>
+        </a>
+      </article>
+      {% else %}
+      <p class="empty-note">No {{ label|lower }} ranking data.</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
 
   </div>
 </section>
