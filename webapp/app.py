@@ -242,8 +242,16 @@ def load_status():
 def monitor_snapshot():
     mongo1 = db1_or_standby()
     mongo2 = db2()
-    mongo4 = db4()
     statuses = node_status()   # live ping: "online" / "standby" / "offline"
+    # Only try to connect to DB4 if it’s reported online
+    mongo4 = None
+    if statuses.get("MongoDB4") != "offline":
+        try:
+            mongo4 = db4()
+        except Exception:
+            # If connection fails, mark it offline in UI
+            mongo4 = None
+            statuses["MongoDB4"] = "offline"
     return [
         {
             "label": "MongoDB1",

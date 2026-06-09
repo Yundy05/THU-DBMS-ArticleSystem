@@ -89,6 +89,9 @@ THU-DBMS-ArticleSystem/
 ---
 
 ## Quick start
+## Ensure to start run the genTable scripts from /db-generation and that files:
+# article.dat, read.dat and user.dat are present
+
 
 ```bash
 ./bootstrap.sh
